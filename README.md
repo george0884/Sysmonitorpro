@@ -29,6 +29,24 @@
 
 ## 📦 Dependencias
 
+# Ejecución normal
+python3 sysmonitorpro_plus.py
+
+# Modo JSON
+python3 sysmonitorpro_plus.py --json > stats.json
+
+# Ocultar secciones específicas
+python3 sysmonitorpro_plus.py --no-gpu --no-top
+
+# Intervalo personalizado
+python3 sysmonitorpro_plus.py -i 2.0
+
+# Configuración personalizada
+python3 sysmonitorpro_plus.py -c ~/mi_config.json
+
+# Ayuda
+python3 sysmonitorpro_plus.py --help
+
 El único requisito externo es **psutil**. Python 3.8+ viene preinstalado en todas las distros modernas.
 
 ### 🟠 Debian / Ubuntu / Mint / Pop!_OS
