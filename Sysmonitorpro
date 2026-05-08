@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""
+sysmonitorpro.py — Monitor de sistema avanzado
+Requiere: pip install psutil
+"""
+
+import os, sys, time, signal, shutil
+import psutil
+
+# ─── COLORES ANSI ────────────────────────────────────────────────────────────
+M      = "\033[38;5;201m"   # Magenta  (títulos)
+C      = "\033[38;5;51m"    # Celeste  (etiquetas)
+C_BAR  = "\033[38;5;39m"    # Azul     (barra activa)
+C_SHD  = "\033[38;5;236m"   # Gris     (barra vacía)
+W      = "\033[1;37m"       # Blanco
+D      = "\033[2;37m"       # Gris tenue
+G      = "\033[38;5;46m"    # Verde    (procesos)
+Y      = "\033[38;5;226m"   # Amarillo (advertencia temp)
+R      = "\033[38;5;196m"   # Rojo     (crítico)
+NC     = "\033[0m"
+BOLD   = "\033[1m"
+
+INTERVALO = 1.0  # segundos
+
+# ─── SALIDA LIMPIA ───────────────────────────────────────────────────────────
+def salir(sig=None, frame=None):
+    sys.stdout.write("\033[?1049l")   # salir de pantalla alternativa
+    sys.stdout.write("\033[?25h")     # mostrar cursor
+    sys.stdout.flush()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT,  salir)
+signal.signal(signal.SIGTERM, salir)
+
+# ─── BARRA DE PROGRESO ───────────────────────────────────────────────────────
+def barra(pct: float, ancho: int = 15) -> str:
+    pct = max(0.0, min(100.0, pct))
+    rell = int(pct * ancho / 100)
+    vac  = ancho - rell
+    color = C_BAR if pct < 80 else (Y if pct < 90 else R)
+    return (f"{D}[{NC}{color}{'█' * rell}{C_SHD}{'█' * vac}{NC}{D}]{NC} "
+            f"{C}{pct:5.1f}%{NC}")
+
+# ─── COLOR TEMPERATURA ───────────────────────────────────────────────────────
+def color_temp(t: float) -> str:
+    if t < 60:   return C
+    if t < 80:   return Y
+    return R
+
+# ─── HUMANIZAR BYTES ─────────────────────────────────────────────────────────
+def humanize(n: float, suffix="B") -> str:
+    for unit in ("", "K", "M", "G", "T"):
+        if abs(n) < 1024.0:
+            return f"{n:6.1f} {unit}{suffix}"
+        n /= 1024.0
+    return f"{n:.1f} P{suffix}"
+
+# ─── SEPARADOR ───────────────────────────────────────────────────────────────
+def sep(cols: int) -> str:
+    return f"{D}{'─' * min(cols, 72)}{NC}"
+
+# ─── DATOS ESTÁTICOS ─────────────────────────────────────────────────────────
+def get_static():
+    info = {}
+    # OS
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("PRETTY_NAME"):
+                    info["os"] = line.split("=", 1)[1].strip().strip('"')
+                    break
+    except Exception:
+        info["os"] = "Linux"
+
+    # Motherboard
+    try:
+        info["mb"] = open("/sys/class/dmi/id/board_name").read().strip()
+    except Exception:
+        info["mb"] = "Motherboard"
+
+    # CPU model
+    try:
+        for line in open("/proc/cpuinfo"):
+            if "model name" in line:
+                info["cpu_model"] = line.split(":", 1)[1].strip()
+                break
+    except Exception:
+        info["cpu_model"] = "CPU"
+
+    info["cores"]   = psutil.cpu_count(logical=False) or 1
+    info["threads"] = psutil.cpu_count(logical=True)  or 1
+    return info
+
+# ─── TEMPERATURA CPU ─────────────────────────────────────────────────────────
+def get_cpu_temps():
+    """Devuelve dict {core_index: temp_celsius} y temp global."""
+    temps_per_core: dict[int, float] = {}
+    global_temp: float | None = None
+
+    if not hasattr(psutil, "sensors_temperatures"):
+        return temps_per_core, global_temp
+
+    try:
+        sensors = psutil.sensors_temperatures()
+    except Exception:
+        return temps_per_core, global_temp
+
+    # Intentar k10temp (AMD) → coretemp (Intel) → acpitz → primero disponible
+    candidates = ["k10temp", "coretemp", "acpitz", "cpu_thermal", "cpu-thermal"]
+    chosen = None
+    for c in candidates:
+        if c in sensors:
+            chosen = c
+            break
+    if chosen is None and sensors:
+        chosen = next(iter(sensors))
+    if chosen is None:
+        return temps_per_core, global_temp
+
+    entries = sensors[chosen]
+    for e in entries:
+        label = e.label.lower()
+        if "package" in label or "tctl" in label or label == "":
+            if global_temp is None:
+                global_temp = e.current
+        elif "core" in label:
+            try:
+                idx = int(''.join(filter(str.isdigit, label)))
+                temps_per_core[idx] = e.current
+            except ValueError:
+                pass
+
+    # fallback global
+    if global_temp is None and entries:
+        global_temp = entries[0].current
+
+    return temps_per_core, global_temp
+
+# ─── VELOCIDAD DE RED ────────────────────────────────────────────────────────
+_prev_net = None
+_prev_net_time = None
+
+def get_net_speed():
+    global _prev_net, _prev_net_time
+    now   = time.time()
+    stats = psutil.net_io_counters()
+    rx_s = tx_s = 0.0
+    if _prev_net and _prev_net_time:
+        dt = now - _prev_net_time
+        if dt > 0:
+            rx_s = (stats.bytes_recv - _prev_net.bytes_recv) / dt
+            tx_s = (stats.bytes_sent - _prev_net.bytes_sent) / dt
+    _prev_net      = stats
+    _prev_net_time = now
+    return stats, rx_s, tx_s
+
+# ─── RENDER PRINCIPAL ────────────────────────────────────────────────────────
+def render(static: dict, cols: int):
+    out = ["\033[H"]   # mover cursor al inicio
+
+    # ── SISTEMA ──────────────────────────────────────────────────────────────
+    boot   = time.time() - psutil.boot_time()
+    uptime = str(time.strftime("%Hh %Mm", time.gmtime(boot)))
+    load   = psutil.getloadavg()
+    load_s = f"{load[0]:.2f}  {load[1]:.2f}  {load[2]:.2f}"
+
+    iface  = ""
+    ip_l   = "N/A"
+    try:
+        gws = psutil.net_if_stats()
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_l = s.getsockname()[0]
+        s.close()
+        # obtener iface por IP
+        for name, addrs in psutil.net_if_addrs().items():
+            for a in addrs:
+                if a.address == ip_l:
+                    iface = name
+                    break
+    except Exception:
+        pass
+
+    out.append(f" {M}▶ SISTEMA{NC}\033[K")
+    out.append(f"  {C}OS:{NC} {static['os']:<30} {C}MB:{NC} {static['mb']}\033[K")
+    out.append(f"  {C}Uptime:{NC} {uptime:<20} {C}Load:{NC} {load_s}\033[K")
+    out.append(sep(cols))
+
+    # ── CPU ACTIVITY ─────────────────────────────────────────────────────────
+    out.append(f" {M}▶ CPU ACTIVITY{NC}  {D}{static['cpu_model']}{NC}\033[K")
+
+    cpu_pcts   = psutil.cpu_percent(percpu=True)
+    cpu_freqs  = psutil.cpu_freq(percpu=True) or []
+    temps_core, temp_global = get_cpu_temps()
+
+    # Resumen global
+    g_pct  = psutil.cpu_percent()
+    g_freq = psutil.cpu_freq()
+    g_freq_s = f"{g_freq.current/1000:.2f} GHz" if g_freq else "?.?? GHz"
+    g_temp_s = ""
+    if temp_global is not None:
+        ct = color_temp(temp_global)
+        g_temp_s = f"  {ct}{temp_global:.0f}°C{NC}"
+
+    out.append(f"  {C}Total:{NC} {barra(g_pct)}  {C}{g_freq_s}{NC}{g_temp_s}\033[K")
+
+    for i, pct in enumerate(cpu_pcts):
+        freq_s = "?.??"
+        if i < len(cpu_freqs) and cpu_freqs[i]:
+            freq_s = f"{cpu_freqs[i].current/1000:.2f}"
+        temp_s = ""
+        if i in temps_core:
+            ct = color_temp(temps_core[i])
+            temp_s = f"  {ct}{temps_core[i]:.0f}°C{NC}"
+        elif temp_global is not None:
+            ct = color_temp(temp_global)
+            temp_s = f"  {ct}{temp_global:.0f}°C{NC}"
+
+        out.append(f"  {C}Core {i}:{NC} {barra(pct)}  {C}{freq_s} GHz{NC}{temp_s}\033[K")
+
+    out.append(sep(cols))
+
+    # ── RECURSOS ─────────────────────────────────────────────────────────────
+    out.append(f" {M}▶ RECURSOS{NC}\033[K")
+
+    mem  = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+
+    out.append(f"  {C}RAM {NC} {barra(mem.percent)}  "
+               f"{C}{humanize(mem.used)} / {humanize(mem.total)}{NC}\033[K")
+    out.append(f"  {C}SWAP{NC} {barra(swap.percent)}  "
+               f"{C}{humanize(swap.used)} / {humanize(swap.total)}{NC}\033[K")
+    out.append(sep(cols))
+
+    # ── RED ───────────────────────────────────────────────────────────────────
+    net_stats, rx_s, tx_s = get_net_speed()
+    out.append(f" {M}▶ RED{NC}  {D}{iface}{NC}\033[K")
+    out.append(f"  {C}IP:{NC} {ip_l:<18} "
+               f"{C}↓ {humanize(rx_s, 'B/s')}{NC}  {C}↑ {humanize(tx_s, 'B/s')}{NC}\033[K")
+    out.append(f"  {C}Total Recibido:{NC} {humanize(net_stats.bytes_recv)}  "
+               f"{C}Enviado:{NC} {humanize(net_stats.bytes_sent)}\033[K")
+    out.append(sep(cols))
+
+    # ── DISCOS ────────────────────────────────────────────────────────────────
+    out.append(f" {M}▶ DISCOS{NC}\033[K")
+    try:
+        partitions = psutil.disk_partitions(all=False)
+        for p in partitions:
+            try:
+                usage = psutil.disk_usage(p.mountpoint)
+                io    = psutil.disk_io_counters(perdisk=True)
+                dev   = p.device.split("/")[-1]
+                io_s  = ""
+                if dev in io:
+                    d = io[dev]
+                    io_s = f"  {D}R:{humanize(d.read_bytes)} W:{humanize(d.write_bytes)}{NC}"
+                out.append(f"  {C}{p.mountpoint:<12}{NC} {barra(usage.percent)}  "
+                           f"{C}{humanize(usage.used)} / {humanize(usage.total)}{NC}{io_s}\033[K")
+            except PermissionError:
+                pass
+    except Exception:
+        pass
+    out.append(sep(cols))
+
+    # ── PROCESOS ─────────────────────────────────────────────────────────────
+    out.append(f" {M}▶ TOP PROCESOS{NC}  {D}(cpu%){NC}\033[K")
+    out.append(f"  {C}{'PID':>7}  {'CPU%':>5}  {'MEM%':>5}  {'USER':<10}  {'NOMBRE'}{NC}\033[K")
+
+    try:
+        procs = []
+        for p in psutil.process_iter(["pid", "name", "username", "cpu_percent", "memory_percent"]):
+            try:
+                procs.append(p.info)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+
+        procs.sort(key=lambda x: x.get("cpu_percent") or 0, reverse=True)
+
+        # cuántas líneas quedan en pantalla
+        rows = shutil.get_terminal_size().lines
+        used_lines = len(out) + 4
+        max_procs  = max(5, rows - used_lines)
+
+        for p in procs[:max_procs]:
+            cpu  = p.get("cpu_percent") or 0.0
+            mem  = p.get("memory_percent") or 0.0
+            user = (p.get("username") or "")[:10]
+            name = (p.get("name") or "")[:28]
+            cpu_col = G if cpu < 50 else (Y if cpu < 80 else R)
+            out.append(f"  {D}{p['pid']:>7}{NC}  {cpu_col}{cpu:>5.1f}{NC}  "
+                       f"{C}{mem:>5.1f}{NC}  {W}{user:<10}{NC}  {name}\033[K")
+    except Exception:
+        pass
+
+    # ── PIE ──────────────────────────────────────────────────────────────────
+    out.append(f"\n  {W}q{NC} salir  {D}· refresco {INTERVALO:.0f}s{NC}\033[K")
+    out.append("\033[J")   # limpiar resto de pantalla
+
+    sys.stdout.write("\n".join(out))
+    sys.stdout.flush()
+
+# ─── MAIN LOOP ───────────────────────────────────────────────────────────────
+def main():
+    static = get_static()
+
+    # Pantalla alternativa + ocultar cursor
+    sys.stdout.write("\033[?1049h\033[?25l\033[2J")
+    sys.stdout.flush()
+
+    # Primera muestra de cpu_percent para calibrar (necesita intervalo)
+    psutil.cpu_percent(percpu=True)
+
+    import select as _select, tty, termios
+
+    fd      = sys.stdin.fileno()
+    old_cfg = termios.tcgetattr(fd)
+
+    try:
+        tty.setcbreak(fd)
+        while True:
+            cols = shutil.get_terminal_size().columns
+            render(static, cols)
+
+            # Esperar tecla o timeout
+            r, _, _ = _select.select([sys.stdin], [], [], INTERVALO)
+            if r:
+                key = sys.stdin.read(1)
+                if key.lower() == "q":
+                    break
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_cfg)
+        salir()
+
+if __name__ == "__main__":
+    if os.geteuid() == 0:
+        print(f"{Y}Advertencia:{NC} Corriendo como root.")
+    main()
