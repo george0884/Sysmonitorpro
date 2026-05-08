@@ -384,7 +384,7 @@ def render(static: dict, cols: int):
         else:
             temp_s = ""
 
-        out.append(f"  {C}Core {i+1:<4}{NC} {barra(pct)}  {C}{freq_s} GHz{NC}{temp_s}\033[K")
+        out.append(f"  {C}Core {i:<4}{NC} {barra(pct)}  {C}{freq_s} GHz{NC}{temp_s}\033[K")
 
     out.append(sep(cols))
 
@@ -530,3 +530,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+              
