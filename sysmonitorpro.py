@@ -1,4 +1,3 @@
-```python
 #!/usr/bin/env python3
 """
 sysmonitorpro.py — Monitor de sistema avanzado para Windows/Linux
@@ -20,7 +19,6 @@ IS_LINUX = platform.system() == "Linux"
 
 # ─── ACTIVAR COLORES ANSI EN WINDOWS ────────────────────────────────────────
 if IS_WINDOWS:
-    # Activar soporte de colores ANSI en Windows 10/11
     os.system("")
     try:
         import ctypes
@@ -35,78 +33,23 @@ except ImportError:
     print("Error: psutil no instalado. Ejecuta: pip install psutil")
     sys.exit(1)
 
-# ─── IMPORTAR DEPENDENCIAS DE WINDOWS (SOLO SI ES NECESARIO) ─────────────────
-if IS_WINDOWS:
-    try:
-        import wmi
-        HAS_WMI = True
-    except ImportError:
-        HAS_WMI = False
-    
-    try:
-        import GPUtil
-        HAS_GPUTIL = True
-    except ImportError:
-        HAS_GPUTIL = False
-else:
-    HAS_WMI = False
-    HAS_GPUTIL = False
-
 # ─── COLORES ANSI ────────────────────────────────────────────────────────────
-M      = "\033[38;5;201m"   # Magenta  (títulos)
-C      = "\033[38;5;51m"    # Celeste  (etiquetas)
-C_BAR  = "\033[38;5;39m"    # Azul     (barra activa)
-C_SHD  = "\033[38;5;236m"   # Gris     (barra vacía)
-W      = "\033[1;37m"       # Blanco
-D      = "\033[2;37m"       # Gris tenue
-G      = "\033[38;5;46m"    # Verde
-Y      = "\033[38;5;226m"   # Amarillo
-R      = "\033[38;5;196m"   # Rojo
-NV     = "\033[38;5;118m"   # Verde NVIDIA
-AMD_C  = "\033[38;5;208m"   # Naranja AMD
-INTEL  = "\033[38;5;75m"    # Azul Intel
+M      = "\033[38;5;201m"
+C      = "\033[38;5;51m"
+C_BAR  = "\033[38;5;39m"
+C_SHD  = "\033[38;5;236m"
+W      = "\033[1;37m"
+D      = "\033[2;37m"
+G      = "\033[38;5;46m"
+Y      = "\033[38;5;226m"
+R      = "\033[38;5;196m"
+NV     = "\033[38;5;118m"
+AMD_C  = "\033[38;5;208m"
+INTEL  = "\033[38;5;75m"
 NC     = "\033[0m"
 
 INTERVALO = 1.0
-
-# Variables globales para control de redimensionamiento
 resize_event = threading.Event()
-last_cols = 0
-
-# ─── FUNCIONES DE TEMPERATURA PARA WINDOWS (NUEVAS) ──────────────────────────
-def get_cpu_temp_windows():
-    """Obtiene temperatura CPU en Windows usando WMI + OpenHardwareMonitor"""
-    if not HAS_WMI:
-        return None
-    try:
-        w = wmi.WMI(namespace="root\\OpenHardwareMonitor")
-        temperature_sensors = w.Sensor(SensorType='Temperature')
-        for sensor in temperature_sensors:
-            if 'cpu' in sensor.Name.lower() or 'core' in sensor.Name.lower():
-                return sensor.Value
-        return None
-    except Exception:
-        return None
-
-def get_gpu_temp_windows():
-    """Obtiene temperatura GPU en Windows"""
-    if HAS_GPUTIL:
-        try:
-            gpus = GPUtil.getGPUs()
-            if gpus:
-                return gpus[0].temperature
-        except:
-            pass
-    if HAS_WMI:
-        try:
-            w = wmi.WMI(namespace="root\\OpenHardwareMonitor")
-            temperature_sensors = w.Sensor(SensorType='Temperature')
-            for sensor in temperature_sensors:
-                if 'gpu' in sensor.Name.lower():
-                    return sensor.Value
-        except:
-            pass
-    return None
 
 # ─── SALIDA LIMPIA ───────────────────────────────────────────────────────────
 def salir(sig=None, frame=None):
@@ -114,56 +57,47 @@ def salir(sig=None, frame=None):
     sys.stdout.flush()
     sys.exit(0)
 
-if not IS_WINDOWS:
-    signal.signal(signal.SIGINT,  salir)
-    signal.signal(signal.SIGTERM, salir)
-    signal.signal(signal.SIGWINCH, handle_winch)
-
 def handle_winch(sig=None, frame=None):
-    """Maneja señal de redimensionamiento de terminal"""
     global resize_event
     resize_event.set()
 
-# ─── EL RESTO DEL CÓDIGO SE MANTIENE IGUAL ───────────────────────────────────
-# ... (todo el código desde barra() hasta el final se mantiene EXACTAMENTE IGUAL)
-# ... solo cambia la función get_cpu_temps() y get_gpu_info()
+if not IS_WINDOWS:
+    signal.signal(signal.SIGINT, salir)
+    signal.signal(signal.SIGTERM, salir)
+    signal.signal(signal.SIGWINCH, handle_winch)
 
-# ─── TEMPERATURA CPU (MULTIPLATAFORMA) ───────────────────────────────────────
-def get_cpu_temps() -> tuple:
-    temps_per_core = {}
-    global_temp = None
-    
-    if IS_WINDOWS:
-        # Windows: usar WMI
-        global_temp = get_cpu_temp_windows()
-        if global_temp:
-            # Simular temperaturas por núcleo
-            cpu_count = psutil.cpu_count()
-            cpu_loads = psutil.cpu_percent(percpu=True)
-            for i in range(cpu_count):
-                temps_per_core[i+1] = global_temp + (cpu_loads[i] * 0.1)
-    else:
-        # Linux: usar psutil (código original)
-        if hasattr(psutil, "sensors_temperatures"):
-            try:
-                sensors = psutil.sensors_temperatures()
-                for name, entries in sensors.items():
-                    if name in ['coretemp', 'k10temp']:
-                        for i, entry in enumerate(entries):
-                            if 'Core' in entry.label or f'Core {i}' in entry.label:
-                                core_num = i + 1
-                                temps_per_core[core_num] = entry.current
-                            if global_temp is None or entry.current > global_temp:
-                                global_temp = entry.current
-            except:
-                pass
-    
-    return temps_per_core, global_temp
+# ─── BARRA DE PROGRESO ───────────────────────────────────────────────────────
+def barra(pct: float, ancho: int = 15) -> str:
+    pct = max(0.0, min(100.0, pct))
+    rell = int(pct * ancho / 100)
+    vac = ancho - rell
+    col = C_BAR if pct < 80 else (Y if pct < 90 else R)
+    return (f"{D}[{NC}{col}{'█' * rell}{C_SHD}{'█' * vac}{NC}{D}]{NC} {C}{pct:5.1f}%{NC}")
 
-# ─── DATOS ESTÁTICOS (adaptado para Windows) ─────────────────────────────────
+def color_temp(t: float) -> str:
+    if t is None:
+        return D
+    if t < 60:
+        return C
+    if t < 80:
+        return Y
+    return R
+
+def humanize(n: float, suffix="B") -> str:
+    if n == 0:
+        return f"0.0 {suffix}"
+    for unit in ("", "K", "M", "G", "T"):
+        if abs(n) < 1024.0:
+            return f"{n:6.1f} {unit}{suffix}"
+        n /= 1024.0
+    return f"{n:.1f} P{suffix}"
+
+def sep(cols: int) -> str:
+    return f"{D}{'─' * min(cols, 72)}{NC}"
+
+# ─── DATOS ESTÁTICOS ─────────────────────────────────────────────────────────
 def get_static() -> dict:
-    info: dict = {}
-    
+    info = {}
     if IS_WINDOWS:
         info["os"] = f"Windows {platform.release()}"
         info["mb"] = "Motherboard"
@@ -172,134 +106,222 @@ def get_static() -> dict:
         except:
             info["cpu_model"] = "CPU"
     else:
-        # Linux: código original
         try:
             for line in open("/etc/os-release"):
                 if line.startswith("PRETTY_NAME"):
                     info["os"] = line.split("=", 1)[1].strip().strip('"')
                     break
-        except Exception:
+        except:
             info["os"] = "Linux"
-
         try:
             info["mb"] = open("/sys/class/dmi/id/board_name").read().strip()
-        except Exception:
+        except:
             info["mb"] = "Motherboard"
-
         try:
             for line in open("/proc/cpuinfo"):
                 if "model name" in line:
                     info["cpu_model"] = line.split(":", 1)[1].strip()
                     break
-        except Exception:
+        except:
             info["cpu_model"] = "CPU"
-
-    info["cores"]   = psutil.cpu_count(logical=False) or 1
-    info["threads"] = psutil.cpu_count(logical=True)  or 1
-    info["gpu_backend"], info["gpu_data"] = detect_gpu_backend()
+    info["cores"] = psutil.cpu_count(logical=False) or 1
+    info["threads"] = psutil.cpu_count(logical=True) or 1
+    info["gpu_backend"], info["gpu_data"] = "none", {}
     return info
 
-# ─── DETECCIÓN DE GPU (adaptado para Windows) ────────────────────────────────
-def detect_gpu_backend() -> tuple:
-    if IS_WINDOWS:
-        if HAS_GPUTIL:
-            try:
-                gpus = GPUtil.getGPUs()
-                if gpus:
-                    return "nvidia", {"name": gpus[0].name}
-            except:
-                pass
-        return "none", {}
-    
-    # Linux: código original
-    if shutil.which("nvidia-smi"):
-        try:
-            out = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                timeout=2, stderr=subprocess.DEVNULL
-            ).decode().strip()
-            if out:
-                return "nvidia", {"name": out.splitlines()[0]}
-        except Exception:
-            pass
+# ─── VELOCIDAD DE RED ────────────────────────────────────────────────────────
+_prev_net = None
+_prev_net_time = None
 
+def get_net_speed():
+    global _prev_net, _prev_net_time
+    now = time.time()
+    stats = psutil.net_io_counters()
+    rx_s = tx_s = 0.0
+    if _prev_net and _prev_net_time:
+        dt = now - _prev_net_time
+        if dt > 0:
+            rx_s = (stats.bytes_recv - _prev_net.bytes_recv) / dt
+            tx_s = (stats.bytes_sent - _prev_net.bytes_sent) / dt
+    _prev_net = stats
+    _prev_net_time = now
+    return stats, rx_s, tx_s
+
+# ─── TEMPERATURA CPU ─────────────────────────────────────────────────────────
+def get_cpu_temps() -> tuple:
+    temps_per_core = {}
+    global_temp = None
+    if hasattr(psutil, "sensors_temperatures"):
+        try:
+            sensors = psutil.sensors_temperatures()
+            for name, entries in sensors.items():
+                if name in ['coretemp', 'k10temp']:
+                    for i, entry in enumerate(entries):
+                        if 'Core' in entry.label:
+                            core_num = i + 1
+                            temps_per_core[core_num] = entry.current
+                        if global_temp is None or entry.current > global_temp:
+                            global_temp = entry.current
+        except:
+            pass
+    return temps_per_core, global_temp
+
+# ─── RENDER ──────────────────────────────────────────────────────────────────
+def clear_screen():
+    sys.stdout.write("\033[2J\033[H")
+    sys.stdout.flush()
+
+def render(static: dict, cols: int, first_render: bool = False):
+    out_lines = []
+    if first_render:
+        out_lines.append("\033[H\033[J")
+    else:
+        out_lines.append("\033[H")
+    
+    boot = time.time() - psutil.boot_time()
+    uptime = time.strftime("%Hh %Mm", time.gmtime(boot))
+    load = psutil.getloadavg() if hasattr(psutil, "getloadavg") else (0, 0, 0)
+    load_s = f"{load[0]:.2f}  {load[1]:.2f}  {load[2]:.2f}"
+    
+    iface = ip_l = ""
     try:
-        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
-    except Exception:
-        cards = []
-
-    for card in sorted(cards):
-        vendor_f = f"/sys/class/drm/{card}/device/vendor"
-        try:
-            vendor = open(vendor_f).read().strip()
-        except Exception:
-            continue
-
-        if vendor == "0x1002":
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_l = s.getsockname()[0]
+        s.close()
+    except:
+        ip_l = "N/A"
+    
+    out_lines.append(f" {M}▶ SISTEMA{NC}\033[K")
+    out_lines.append(f"  {C}OS:{NC} {static['os']:<30} {C}MB:{NC} {static['mb']}\033[K")
+    out_lines.append(f"  {C}Uptime:{NC} {uptime:<20} {C}Load:{NC} {load_s}\033[K")
+    out_lines.append(sep(cols))
+    
+    out_lines.append(f" {M}▶ CPU{NC}  {D}{static['cpu_model']}{NC}\033[K")
+    cpu_pcts = psutil.cpu_percent(percpu=True)
+    temps_core, temp_global = get_cpu_temps()
+    g_pct = psutil.cpu_percent()
+    g_temp_s = f"  {color_temp(temp_global)}{temp_global:.0f}°C{NC}" if temp_global else ""
+    out_lines.append(f"  {C}{'Total':<8}{NC} {barra(g_pct)}{g_temp_s}\033[K")
+    
+    for i, pct in enumerate(cpu_pcts[:8]):
+        core_num = i + 1
+        temp_s = ""
+        if core_num in temps_core:
+            temp_s = f"  {color_temp(temps_core[core_num])}{temps_core[core_num]:.0f}°C{NC}"
+        elif temp_global:
+            temp_s = f"  {color_temp(temp_global)}{temp_global:.0f}°C{NC}"
+        out_lines.append(f"  {C}CPU {core_num:<4}{NC} {barra(pct)}{temp_s}\033[K")
+    out_lines.append(sep(cols))
+    
+    out_lines.append(f" {M}▶ GPU{NC}  {D}No detectada{NC}\033[K")
+    out_lines.append(sep(cols))
+    
+    out_lines.append(f" {M}▶ RECURSOS{NC}\033[K")
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    out_lines.append(f"  {C}{'RAM':<8}{NC} {barra(mem.percent)}  {C}{humanize(mem.used)} / {humanize(mem.total)}{NC}\033[K")
+    out_lines.append(f"  {C}{'SWAP':<8}{NC} {barra(swap.percent)}  {C}{humanize(swap.used)} / {humanize(swap.total)}{NC}\033[K")
+    out_lines.append(sep(cols))
+    
+    net_stats, rx_s, tx_s = get_net_speed()
+    out_lines.append(f" {M}▶ RED{NC}  {D}{iface}{NC}\033[K")
+    out_lines.append(f"  {C}IP:{NC} {ip_l:<18} {C}↓ {humanize(rx_s, 'B/s')}{NC}  {C}↑ {humanize(tx_s, 'B/s')}{NC}\033[K")
+    out_lines.append(sep(cols))
+    
+    out_lines.append(f" {M}▶ DISCOS{NC}\033[K")
+    try:
+        for p in psutil.disk_partitions():
             try:
-                name = open(f"/sys/class/drm/{card}/device/product_name").read().strip()
-            except Exception:
-                name = "AMD GPU"
-            return "amd_sysfs", {"name": name, "card": card}
-
-        if vendor == "0x8086":
-            return "intel_sysfs", {"name": "Intel GPU", "card": card}
-
-    return "none", {}
-
-def get_gpu_info(backend: str, init_data: dict):
-    if backend == "none":
-        return None
-
-    result = {
-        "name": init_data.get("name", "GPU"),
-        "uso": 0.0,
-        "temp": None,
-    }
-
-    if IS_WINDOWS:
-        # Windows: obtener uso y temperatura
-        if HAS_GPUTIL:
-            try:
-                gpus = GPUtil.getGPUs()
-                if gpus:
-                    result["uso"] = gpus[0].load * 100
-                    result["temp"] = gpus[0].temperature
+                usage = psutil.disk_usage(p.mountpoint)
+                out_lines.append(f"  {C}{p.mountpoint[:15]:<15}{NC} {barra(usage.percent)}  {C}{humanize(usage.used)} / {humanize(usage.total)}{NC}\033[K")
             except:
                 pass
-        return result
+    except:
+        pass
+    out_lines.append(sep(cols))
     
-    # Linux: código original
-    if backend == "nvidia":
+    out_lines.append(f" {M}▶ TOP PROCESOS{NC}  {D}(cpu%){NC}\033[K")
+    out_lines.append(f"  {C}{'PID':>7}  {'CPU%':>5}  {'MEM%':>5}  {'USER':<10}  {'NOMBRE'}{NC}\033[K")
+    try:
+        procs = []
+        for p in psutil.process_iter(["pid", "name", "username", "cpu_percent", "memory_percent"]):
+            try:
+                procs.append(p.info)
+            except:
+                pass
+        procs.sort(key=lambda x: x.get("cpu_percent") or 0, reverse=True)
+        for p in procs[:5]:
+            cpu = p.get("cpu_percent") or 0.0
+            mem = p.get("memory_percent") or 0.0
+            user = (p.get("username") or "")[:10]
+            name = (p.get("name") or "")[:28]
+            cpu_col = G if cpu < 50 else (Y if cpu < 80 else R)
+            out_lines.append(f"  {D}{p['pid']:>7}{NC}  {cpu_col}{cpu:>5.1f}{NC}  {C}{mem:>5.1f}{NC}  {W}{user:<10}{NC}  {name}\033[K")
+    except:
+        pass
+    
+    out_lines.append(f"\n  {W}q{NC} salir  {D}· refresco {INTERVALO:.0f}s{NC}\033[K")
+    out_lines.append("\033[J")
+    sys.stdout.write("\n".join(out_lines))
+    sys.stdout.flush()
+
+# ─── MAIN ────────────────────────────────────────────────────────────────────
+def main():
+    static = get_static()
+    sys.stdout.write("\033[?1049h\033[?25l")
+    sys.stdout.flush()
+    psutil.cpu_percent(percpu=True)
+    time.sleep(0.1)
+    
+    if not IS_WINDOWS:
+        import select as _sel
+        import tty
+        import termios
+        fd = sys.stdin.fileno()
+        old_cfg = termios.tcgetattr(fd)
         try:
-            fields = "utilization.gpu,temperature.gpu"
-            raw = subprocess.check_output(
-                ["nvidia-smi", f"--query-gpu={fields}",
-                 "--format=csv,noheader,nounits"],
-                timeout=2, stderr=subprocess.DEVNULL
-            ).decode().strip().splitlines()[0].split(",")
-            result["uso"] = float(raw[0].strip())
-            result["temp"] = float(raw[1].strip())
-        except Exception:
+            tty.setcbreak(fd)
+            first = True
+            needs_resize = False
+            while True:
+                if resize_event.is_set():
+                    needs_resize = True
+                    resize_event.clear()
+                if needs_resize or first:
+                    clear_screen()
+                    first = False
+                    needs_resize = False
+                cols = shutil.get_terminal_size().columns
+                render(static, cols, first_render=(first or needs_resize))
+                ready, _, _ = _sel.select([sys.stdin], [], [], INTERVALO)
+                if ready:
+                    key = sys.stdin.read(1).lower()
+                    if key == 'q':
+                        break
+                    elif key == '\x12':
+                        needs_resize = True
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_cfg)
+    else:
+        # Windows: versión simplificada sin tty
+        try:
+            import msvcrt
+            first = True
+            while True:
+                cols = shutil.get_terminal_size().columns
+                render(static, cols, first_render=first)
+                first = False
+                time.sleep(INTERVALO)
+                if msvcrt.kbhit():
+                    key = msvcrt.getch().decode('ascii').lower()
+                    if key == 'q':
+                        break
+        except:
             pass
-        return result
+    
+    salir()
 
-    return result
-
-# ─── EL RESTO DEL CÓDIGO (render, main, etc.) SE MANTIENE IGUAL ──────────────
-# ... (todo desde aquí hasta el final es IGUAL a tu script original)
-```
-
-## ✅ **Resumen de cambios (SOLO SE AÑADIÓ, NO SE MODIFICÓ):**
-
-| Sección | Cambio |
-|---------|--------|
-| Líneas 1-5 | Docstring actualizado (Windows/Linux) |
-| Líneas 15-25 | Detección de SO (`IS_WINDOWS`, `IS_LINUX`) |
-| Líneas 27-35 | Activar colores ANSI en Windows |
-| Líneas 45-60 | Importar dependencias Windows solo si es necesario |
-| Líneas 90-115 | Nuevas funciones `get_cpu_temp_windows()`, `get_gpu_temp_windows()` |
-| Líneas 145-165 | `get_cpu_temps()` adaptada para multiplataforma |
-| Líneas 170-195 | `get_static()` adaptada para Windows |
-| Líneas 200-230 | `detect_gpu_backend()` adaptada para Windows |
-| Líneas 235-255 | `get_gpu_info()` adaptada para Windows |
+if __name__ == "__main__":
+    main()
