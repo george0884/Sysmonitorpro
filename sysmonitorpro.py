@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """
-sysmonitorpro_plus.py — Monitor de sistema avanzado para Linux con gráficos históricos,
+sysmonitorpro.py — Monitor de sistema avanzado para Linux con gráficos históricos,
 configuración, modo JSON y detección inteligente de red.
-
-Requiere: pip install psutil
-Opcional: pip install gputil pyamdgpuinfo
 """
-
 import os
 import sys
 import time
