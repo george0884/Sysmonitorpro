@@ -1,0 +1,10 @@
+# Dependencias principales
+psutil>=5.8.0
+
+# Para temperaturas en Windows (opcional)
+wmi>=1.5.0
+pywin32>=300
+GPUtil>=1.4.0
+
+# Para compilar a .exe (opcional)
+pyinstaller>=5.0
