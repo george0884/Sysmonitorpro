@@ -31,7 +31,7 @@
 | **GPU** | Soporte NVIDIA (nvidia-smi), AMD (ROCm / sysfs), Intel (sysfs) |
 | **Modo JSON** | Salida estructurada para scripts, i3blocks, polybar, cron |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico · Salida limpia |
-
+```
 ---
 
 ## 📦 Instalación
