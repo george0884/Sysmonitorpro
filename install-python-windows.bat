@@ -55,6 +55,7 @@ if errorlevel 1 (
 echo.
 echo [1/3] Instalando psutil...
 python -m pip install psutil
+pip install pyadl
 
 :: Instalar dependencias opcionales
 echo.
