@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
 """
-sysmonitorpro.py — Monitor de sistema avanzado para Linux
+sysmonitorpro_plus.py — Monitor de sistema avanzado para Linux con gráficos históricos,
+configuración, modo JSON y detección inteligente de red.
+
 Requiere: pip install psutil
-Opcional: pip install gputil          (NVIDIA vía nvidia-smi)
-          pip install pyamdgpuinfo     (AMD vía ROCm)
+Opcional: pip install gputil pyamdgpuinfo
 """
 
-import os, sys, time, signal, shutil, subprocess
-import psutil
+import os
+import sys
+import time
+import signal
+import shutil
+import subprocess
+import json
+import argparse
+import collections
+import math
+from typing import Dict, List, Tuple, Optional, Any
+
+try:
+    import psutil
+except ImportError:
+    print("Error: psutil no instalado. Ejecuta: pip install psutil")
+    sys.exit(1)
 
 # ─── COLORES ANSI ────────────────────────────────────────────────────────────
 M      = "\033[38;5;201m"   # Magenta  (títulos)
@@ -24,7 +40,55 @@ AMD_C  = "\033[38;5;208m"   # Naranja AMD
 INTEL  = "\033[38;5;75m"    # Azul Intel
 NC     = "\033[0m"
 
-INTERVALO = 1.0
+# ─── CONFIGURACIÓN ──────────────────────────────────────────────────────────
+DEFAULT_CONFIG = {
+    "intervalo": 1.0,
+    "mostrar_gpu": True,
+    "mostrar_discos": True,
+    "mostrar_red": True,
+    "mostrar_top": True,
+    "grafico_tamano": 40,
+    "historial_segundos": 60,  # 60 segundos de historial
+    "interfaz_red": "auto"
+}
+
+config = DEFAULT_CONFIG.copy()
+
+# ─── HISTORIAL PARA GRÁFICOS ─────────────────────────────────────────────────
+class HistoryBuffer:
+    def __init__(self, maxlen: int):
+        self.buffer = collections.deque(maxlen=maxlen)
+    
+    def append(self, value: float):
+        self.buffer.append(value)
+    
+    def get_graph(self, width: int, height: int = 3) -> List[str]:
+        """Genera gráfico ASCII de altura variable"""
+        if len(self.buffer) < 2:
+            return [" " * width] * height
+        
+        # Normalizar valores
+        values = list(self.buffer)
+        min_val = min(values)
+        max_val = max(values)
+        range_val = max_val - min_val if max_val - min_val > 0 else 1
+        
+        # Crear grid
+        grid = [[" " for _ in range(width)] for _ in range(height)]
+        
+        # Dibujar línea
+        step = max(1, len(values) // width)
+        for x in range(width):
+            idx = min(x * step, len(values) - 1)
+            val = values[idx]
+            nivel = int(((val - min_val) / range_val) * (height - 1))
+            grid[height - 1 - nivel][x] = "█"
+        
+        return ["".join(row) for row in grid]
+
+# Buffers globales
+cpu_history = HistoryBuffer(60)
+ram_history = HistoryBuffer(60)
 
 # ─── SALIDA LIMPIA ───────────────────────────────────────────────────────────
 def salir(sig=None, frame=None):
@@ -34,8 +98,9 @@ def salir(sig=None, frame=None):
 
 signal.signal(signal.SIGINT,  salir)
 signal.signal(signal.SIGTERM, salir)
+signal.signal(signal.SIGWINCH, lambda s, f: None)  # Capturar redimension
 
-# ─── BARRA DE PROGRESO (unificada para CPU cores, GPU, RAM, SWAP, disco) ─────
+# ─── BARRA DE PROGRESO ───────────────────────────────────────────────────────
 def barra(pct: float, ancho: int = 15) -> str:
     pct  = max(0.0, min(100.0, pct))
     rell = int(pct * ancho / 100)
@@ -52,7 +117,9 @@ def color_temp(t: float) -> str:
 
 # ─── HUMANIZAR BYTES ─────────────────────────────────────────────────────────
 def humanize(n: float, suffix="B") -> str:
-    for unit in ("", "K", "M", "G", "T"):
+    if n == 0:
+        return f"0.0 {suffix}"
+    for unit in ("", "K", "M", "G", "T", "P"):
         if abs(n) < 1024.0:
             return f"{n:6.1f} {unit}{suffix}"
         n /= 1024.0
@@ -60,6 +127,48 @@ def humanize(n: float, suffix="B") -> str:
 
 def sep(cols: int) -> str:
     return f"{D}{'─' * min(cols, 72)}{NC}"
+
+# ─── DETECCIÓN DE INTERFAZ DE RED ACTIVA ─────────────────────────────────────
+def get_active_interface() -> Tuple[str, str]:
+    """Detecta la interfaz de red activa por defecto"""
+    try:
+        # Método 1: Ruta por defecto
+        with open("/proc/net/route") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) > 1 and parts[1] == "00000000":  # Default route
+                    iface = parts[0]
+                    return iface, get_interface_ip(iface)
+    except:
+        pass
+    
+    # Método 2: Interfaz con más tráfico
+    try:
+        stats = psutil.net_io_counters(pernic=True)
+        if stats:
+            main_iface = max(stats.items(), key=lambda x: x[1].bytes_sent + x[1].bytes_recv)[0]
+            return main_iface, get_interface_ip(main_iface)
+    except:
+        pass
+    
+    # Método 3: Primera interfaz no-loopback
+    for iface, addrs in psutil.net_if_addrs().items():
+        if iface != "lo":
+            ip = get_interface_ip(iface)
+            if ip:
+                return iface, ip
+    
+    return "N/A", "N/A"
+
+def get_interface_ip(iface: str) -> str:
+    """Obtiene IP de una interfaz específica"""
+    try:
+        for addr in psutil.net_if_addrs().get(iface, []):
+            if addr.family == 2:  # AF_INET
+                return addr.address
+    except:
+        pass
+    return "N/A"
 
 # ─── DATOS ESTÁTICOS ─────────────────────────────────────────────────────────
 def get_static() -> dict:
@@ -87,10 +196,16 @@ def get_static() -> dict:
 
     info["cores"]   = psutil.cpu_count(logical=False) or 1
     info["threads"] = psutil.cpu_count(logical=True)  or 1
+    
+    # Detectar interfaz de red
+    interface, ip = get_active_interface()
+    info["interfaz_red"] = interface
+    info["ip_local"] = ip
+    
     info["gpu_backend"], info["gpu_data"] = detect_gpu_backend()
     return info
 
-# ─── DETECCIÓN DE GPU ────────────────────────────────────────────────────────
+# ─── DETECCIÓN DE GPU (mejorada con más sensores) ────────────────────────────
 def detect_gpu_backend() -> tuple:
     """
     Detecta GPU disponible en el sistema.
@@ -148,12 +263,8 @@ def detect_gpu_backend() -> tuple:
 
     return "none", {}
 
-
 def get_gpu_info(backend: str, init_data: dict):
-    """
-    Retorna dict con: name, vendor_color, uso, vram_used, vram_total, temp
-    o None si no hay GPU.
-    """
+    """Retorna dict con información de GPU o None si no hay."""
     if backend == "none":
         return None
 
@@ -268,266 +379,170 @@ def get_gpu_info(backend: str, init_data: dict):
 
     return None
 
-# ─── TEMPERATURA CPU ─────────────────────────────────────────────────────────
-def get_cpu_temps() -> tuple:
+# ─── TEMPERATURA CPU (mejorado) ──────────────────────────────────────────────
+def get_cpu_temps() -> Tuple[Dict[int, float], Optional[float]]:
+    """Obtiene temperaturas CPU con soporte para múltiples sensores"""
     temps_per_core: dict = {}
     global_temp = None
-    if not hasattr(psutil, "sensors_temperatures"):
-        return temps_per_core, global_temp
-    try:
-        sensors = psutil.sensors_temperatures()
-    except Exception:
-        return temps_per_core, global_temp
-
-    candidates = ["k10temp", "coretemp", "acpitz", "cpu_thermal", "cpu-thermal"]
-    chosen = None
-    for c in candidates:
-        if c in sensors:
-            chosen = c
-            break
-    if chosen is None and sensors:
-        chosen = next(iter(sensors))
-    if not chosen:
-        return temps_per_core, global_temp
-
-    for e in sensors[chosen]:
-        label = e.label.lower()
-        if "package" in label or "tctl" in label or label == "":
-            if global_temp is None:
-                global_temp = e.current
-        elif "core" in label:
+    
+    # Primero intentar con psutil
+    if hasattr(psutil, "sensors_temperatures"):
+        try:
+            sensors = psutil.sensors_temperatures()
+        except Exception:
+            sensors = {}
+        
+        # Lista ampliada de sensores comunes
+        candidates = ["k10temp", "coretemp", "acpitz", "cpu_thermal", "cpu-thermal", 
+                      "pch_skylake", "nvme", "iwlwifi", "ath10k_hwmon"]
+        chosen = None
+        for c in candidates:
+            if c in sensors:
+                chosen = c
+                break
+        if chosen is None and sensors:
+            chosen = next(iter(sensors))
+        if chosen:
+            for e in sensors[chosen]:
+                label = e.label.lower()
+                if "package" in label or "tctl" in label or label == "":
+                    if global_temp is None:
+                        global_temp = e.current
+                elif "core" in label:
+                    try:
+                        idx = int(''.join(filter(str.isdigit, label)))
+                        temps_per_core[idx] = e.current
+                    except ValueError:
+                        pass
+            
+            if global_temp is None and sensors[chosen]:
+                global_temp = sensors[chosen][0].current
+    
+    # Fallback: sysfs directo
+    if global_temp is None:
+        thermal_zones = "/sys/class/thermal"
+        if os.path.exists(thermal_zones):
             try:
-                idx = int(''.join(filter(str.isdigit, label)))
-                temps_per_core[idx] = e.current
-            except ValueError:
+                for zone in os.listdir(thermal_zones):
+                    if zone.startswith("thermal_zone"):
+                        temp_file = f"{thermal_zones}/{zone}/temp"
+                        if os.path.exists(temp_file):
+                            temp = int(open(temp_file).read().strip()) / 1000
+                            if global_temp is None or temp > global_temp:
+                                global_temp = temp
+            except:
                 pass
-
-    if global_temp is None and sensors[chosen]:
-        global_temp = sensors[chosen][0].current
+    
     return temps_per_core, global_temp
 
-# ─── VELOCIDAD DE RED ────────────────────────────────────────────────────────
-_prev_net      = None
+# ─── VELOCIDAD DE RED (mejorado con interfaz específica) ─────────────────────
+_prev_net      = {}
 _prev_net_time = None
 
-def get_net_speed():
+def get_net_speed(interface: str = None):
+    """Obtiene velocidad de red para interfaz específica o todas"""
     global _prev_net, _prev_net_time
-    now   = time.time()
-    stats = psutil.net_io_counters()
+    now = time.time()
+    
+    if interface and interface != "N/A":
+        stats = psutil.net_io_counters(pernic=True).get(interface)
+        if not stats:
+            stats = psutil.net_io_counters()
+    else:
+        stats = psutil.net_io_counters()
+    
     rx_s = tx_s = 0.0
-    if _prev_net and _prev_net_time:
+    if _prev_net_time and interface in _prev_net:
         dt = now - _prev_net_time
-        if dt > 0:
-            rx_s = (stats.bytes_recv - _prev_net.bytes_recv) / dt
-            tx_s = (stats.bytes_sent - _prev_net.bytes_sent) / dt
-    _prev_net      = stats
+        if dt > 0 and _prev_net[interface]:
+            rx_s = (stats.bytes_recv - _prev_net[interface].bytes_recv) / dt
+            tx_s = (stats.bytes_sent - _prev_net[interface].bytes_sent) / dt
+    
+    _prev_net[interface] = stats
     _prev_net_time = now
     return stats, rx_s, tx_s
 
-# ─── RENDER ──────────────────────────────────────────────────────────────────
-def render(static: dict, cols: int):
+# ─── RENDERIZADO PRINCIPAL ───────────────────────────────────────────────────
+def render(static: dict, cols: int, mode: str = "normal"):
+    """Renderiza la interfaz (modo normal o JSON)"""
+    if mode == "json":
+        render_json(static)
+        return
+    
     out = ["\033[H"]
-
+    
+    # Asegurar que el buffer de historial tenga datos actuales
+    cpu_pct = psutil.cpu_percent()
+    mem_pct = psutil.virtual_memory().percent
+    cpu_history.append(cpu_pct)
+    ram_history.append(mem_pct)
+    
     # ── SISTEMA ──────────────────────────────────────────────────────────────
     boot   = time.time() - psutil.boot_time()
     uptime = time.strftime("%Hh %Mm", time.gmtime(boot))
     load   = psutil.getloadavg()
     load_s = f"{load[0]:.2f}  {load[1]:.2f}  {load[2]:.2f}"
-
-    iface = ip_l = ""
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip_l = s.getsockname()[0]
-        s.close()
-        for name, addrs in psutil.net_if_addrs().items():
-            for a in addrs:
-                if a.address == ip_l:
-                    iface = name
-                    break
-    except Exception:
-        ip_l = "N/A"
-
+    
     out.append(f" {M}▶ SISTEMA{NC}\033[K")
     out.append(f"  {C}OS:{NC} {static['os']:<30} {C}MB:{NC} {static['mb']}\033[K")
     out.append(f"  {C}Uptime:{NC} {uptime:<20} {C}Load:{NC} {load_s}\033[K")
     out.append(sep(cols))
-
-    # ── CPU — todos los cores con barra idéntica a RAM ────────────────────────
+    
+    # ── CPU con gráfico histórico ───────────────────────────────────────────
     out.append(f" {M}▶ CPU{NC}  {D}{static['cpu_model']}{NC}\033[K")
-
+    
+    # Gráfico histórico de CPU
+    graf_cpu = cpu_history.get_graph(config["grafico_tamano"], 2)
+    out.append(f"  {C}Histórico CPU:{NC}")
+    for line in graf_cpu:
+        out.append(f"  {C_BAR}{line}{NC}")
+    
     cpu_pcts  = psutil.cpu_percent(percpu=True)
     cpu_freqs = psutil.cpu_freq(percpu=True) or []
     temps_core, temp_global = get_cpu_temps()
-
-    g_pct    = psutil.cpu_percent()
+    
     g_freq   = psutil.cpu_freq()
     g_freq_s = f"{g_freq.current/1000:.2f} GHz" if g_freq else "?.?? GHz"
-    g_temp_s = ""
-    if temp_global is not None:
-        ct = color_temp(temp_global)
-        g_temp_s = f"  {ct}{temp_global:.0f}°C{NC}"
-
-    out.append(f"  {C}{'Total':<8}{NC} {barra(g_pct)}  {C}{g_freq_s}{NC}{g_temp_s}\033[K")
-
-    for i, pct in enumerate(cpu_pcts):
-        freq_s = "?.??"
-        if i < len(cpu_freqs) and cpu_freqs[i]:
-            freq_s = f"{cpu_freqs[i].current/1000:.2f}"
-        if i in temps_core:
-            ct     = color_temp(temps_core[i])
-            temp_s = f"  {ct}{temps_core[i]:.0f}°C{NC}"
-        elif temp_global is not None:
-            ct     = color_temp(temp_global)
-            temp_s = f"  {ct}{temp_global:.0f}°C{NC}"
-        else:
-            temp_s = ""
-
+    g_temp_s = f"  {color_temp(temp_global)}{temp_global:.0f}°C{NC}" if temp_global else ""
+    
+    out.append(f"  {C}{'Total':<8}{NC} {barra(cpu_pcts[0] if cpu_pcts else cpu_pct)}  {C}{g_freq_s}{NC}{g_temp_s}\033[K")
+    
+    for i, pct in enumerate(cpu_pcts[:8]):  # Limitar a 8 cores para no saturar
+        freq_s = f"{cpu_freqs[i].current/1000:.2f}" if i < len(cpu_freqs) and cpu_freqs[i] else "?.??"
+        temp_s = f"  {color_temp(temps_core[i])}{temps_core[i]:.0f}°C{NC}" if i in temps_core else (f"  {color_temp(temp_global)}{temp_global:.0f}°C{NC}" if temp_global else "")
+        
         out.append(f"  {C}Core {i:<4}{NC} {barra(pct)}  {C}{freq_s} GHz{NC}{temp_s}\033[K")
-
+    
+    if len(cpu_pcts) > 8:
+        out.append(f"  {D}... y {len(cpu_pcts)-8} cores más{NC}\033[K")
+    
     out.append(sep(cols))
-
-    # ── GPU ───────────────────────────────────────────────────────────────────
-    backend   = static.get("gpu_backend", "none")
-    init_data = static.get("gpu_data",    {})
-    gpu       = get_gpu_info(backend, init_data)
-
-    if gpu:
-        vc = gpu["vendor_color"]
-        if backend == "nvidia":
-            badge = f"{NV}[NVIDIA]{NC}"
-        elif backend in ("amd_rocm", "amd_sysfs"):
-            badge = f"{AMD_C}[AMD]{NC}"
-        elif backend == "intel_sysfs":
-            badge = f"{INTEL}[Intel]{NC}"
-        else:
-            badge = ""
-
-        out.append(f" {M}▶ GPU{NC}  {badge}  {D}{gpu['name'][:40]}{NC}\033[K")
-        out.append(f"  {C}{'Uso':<8}{NC} {barra(gpu['uso'])}\033[K")
-
-        if gpu["vram_total"] > 0:
-            vram_pct = gpu["vram_used"] / gpu["vram_total"] * 100
-            out.append(
-                f"  {C}{'VRAM':<8}{NC} {barra(vram_pct)}  "
-                f"{C}{humanize(gpu['vram_used'])} / {humanize(gpu['vram_total'])}{NC}\033[K"
-            )
-        else:
-            out.append(f"  {C}VRAM{NC}     {D}no disponible{NC}\033[K")
-
-        if gpu["temp"] is not None:
-            ct = color_temp(gpu["temp"])
-            out.append(f"  {C}Temp{NC}     {ct}{gpu['temp']:.0f}°C{NC}\033[K")
-    else:
-        out.append(f" {M}▶ GPU{NC}  {D}No detectada o sin driver{NC}\033[K")
-
-    out.append(sep(cols))
-
-    # ── RECURSOS ─────────────────────────────────────────────────────────────
-    out.append(f" {M}▶ RECURSOS{NC}\033[K")
-    mem  = psutil.virtual_memory()
-    swap = psutil.swap_memory()
-    out.append(f"  {C}{'RAM':<8}{NC} {barra(mem.percent)}  "
-               f"{C}{humanize(mem.used)} / {humanize(mem.total)}{NC}\033[K")
-    out.append(f"  {C}{'SWAP':<8}{NC} {barra(swap.percent)}  "
-               f"{C}{humanize(swap.used)} / {humanize(swap.total)}{NC}\033[K")
-    out.append(sep(cols))
-
-    # ── RED ───────────────────────────────────────────────────────────────────
-    net_stats, rx_s, tx_s = get_net_speed()
-    out.append(f" {M}▶ RED{NC}  {D}{iface}{NC}\033[K")
-    out.append(f"  {C}IP:{NC} {ip_l:<18} "
-               f"{C}↓ {humanize(rx_s, 'B/s')}{NC}  {C}↑ {humanize(tx_s, 'B/s')}{NC}\033[K")
-    out.append(f"  {C}Total:{NC} Recibido {humanize(net_stats.bytes_recv)}  "
-               f"Enviado {humanize(net_stats.bytes_sent)}\033[K")
-    out.append(sep(cols))
-
-    # ── DISCOS ────────────────────────────────────────────────────────────────
-    out.append(f" {M}▶ DISCOS{NC}\033[K")
-    try:
-        io_all = psutil.disk_io_counters(perdisk=True)
-        for p in psutil.disk_partitions(all=False):
-            try:
-                usage = psutil.disk_usage(p.mountpoint)
-                dev   = p.device.split("/")[-1]
-                io_s  = ""
-                if dev in io_all:
-                    d    = io_all[dev]
-                    io_s = f"  {D}R:{humanize(d.read_bytes)} W:{humanize(d.write_bytes)}{NC}"
+    
+    # ── GPU (si está habilitada) ────────────────────────────────────────────
+    if config["mostrar_gpu"]:
+        backend   = static.get("gpu_backend", "none")
+        init_data = static.get("gpu_data",    {})
+        gpu       = get_gpu_info(backend, init_data)
+        
+        if gpu:
+            vc = gpu["vendor_color"]
+            if backend == "nvidia":
+                badge = f"{NV}[NVIDIA]{NC}"
+            elif backend in ("amd_rocm", "amd_sysfs"):
+                badge = f"{AMD_C}[AMD]{NC}"
+            elif backend == "intel_sysfs":
+                badge = f"{INTEL}[Intel]{NC}"
+            else:
+                badge = ""
+            
+            out.append(f" {M}▶ GPU{NC}  {badge}  {D}{gpu['name'][:40]}{NC}\033[K")
+            out.append(f"  {C}{'Uso':<8}{NC} {barra(gpu['uso'])}\033[K")
+            
+            if gpu["vram_total"] > 0:
+                vram_pct = gpu["vram_used"] / gpu["vram_total"] * 100
                 out.append(
-                    f"  {C}{p.mountpoint:<12}{NC} {barra(usage.percent)}  "
-                    f"{C}{humanize(usage.used)} / {humanize(usage.total)}{NC}{io_s}\033[K"
+                    f"  {C}{'VRAM':<8}{NC} {barra(vram_pct)}  "
+                    f"{C}{humanize(gpu['vram_used'])} / {humanize(gpu['vram_total'])}{NC}\033[K"
                 )
-            except PermissionError:
-                pass
-    except Exception:
-        pass
-    out.append(sep(cols))
-
-    # ── PROCESOS ─────────────────────────────────────────────────────────────
-    out.append(f" {M}▶ TOP PROCESOS{NC}  {D}(cpu%){NC}\033[K")
-    out.append(f"  {C}{'PID':>7}  {'CPU%':>5}  {'MEM%':>5}  {'USER':<10}  {'NOMBRE'}{NC}\033[K")
-    try:
-        procs = []
-        for p in psutil.process_iter(["pid", "name", "username", "cpu_percent", "memory_percent"]):
-            try:
-                procs.append(p.info)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        procs.sort(key=lambda x: x.get("cpu_percent") or 0, reverse=True)
-        max_procs = max(5, shutil.get_terminal_size().lines - len(out) - 4)
-        for p in procs[:max_procs]:
-            cpu     = p.get("cpu_percent")    or 0.0
-            mem     = p.get("memory_percent") or 0.0
-            user    = (p.get("username") or "")[:10]
-            name    = (p.get("name")     or "")[:28]
-            cpu_col = G if cpu < 50 else (Y if cpu < 80 else R)
-            out.append(
-                f"  {D}{p['pid']:>7}{NC}  {cpu_col}{cpu:>5.1f}{NC}  "
-                f"{C}{mem:>5.1f}{NC}  {W}{user:<10}{NC}  {name}\033[K"
-            )
-    except Exception:
-        pass
-
-    out.append(f"\n  {W}q{NC} salir  {D}· refresco {INTERVALO:.0f}s{NC}\033[K")
-    out.append("\033[J")
-    sys.stdout.write("\n".join(out))
-    sys.stdout.flush()
-
-# ─── MAIN ────────────────────────────────────────────────────────────────────
-def main():
-    static  = get_static()
-    backend = static.get("gpu_backend", "none")
-    labels  = {
-        "nvidia":      "NVIDIA  (nvidia-smi)",
-        "amd_rocm":    "AMD     (rocm-smi)",
-        "amd_sysfs":   "AMD     (sysfs)",
-        "intel_sysfs": "Intel   (sysfs)",
-        "none":        "No detectada",
-    }
-    print(f"GPU detectada: {labels.get(backend, backend)}")
-    time.sleep(0.6)
-
-    sys.stdout.write("\033[?1049h\033[?25l\033[2J")
-    sys.stdout.flush()
-    psutil.cpu_percent(percpu=True)   # calibrar primera muestra
-
-    import select as _sel, tty, termios
-    fd      = sys.stdin.fileno()
-    old_cfg = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd)
-        while True:
-            cols = shutil.get_terminal_size().columns
-            render(static, cols)
-            r, _, _ = _sel.select([sys.stdin], [], [], INTERVALO)
-            if r and sys.stdin.read(1).lower() == "q":
-                break
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_cfg)
-        salir()
-
-if __name__ == "__main__":
-    main()
-              
+            else:
+                out.append(f"  {C}
