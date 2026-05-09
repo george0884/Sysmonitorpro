@@ -89,6 +89,7 @@ pip3 install psutil
 python --version
 
 # Instalar dependencias principales
+#puedes usar el script automaticon mas abajo, incluiido en el repo.
 pip install psutil
 
 # Instalar dependencias para temperaturas (opcional pero recomendado)
@@ -106,10 +107,9 @@ pip install wmi pywin32 GPUtil
 # Clonar o descargar el repositorio
 git clone https://github.com/george0884/sysmonitorpro.git
 cd sysmonitorpro
-
 #instalador automatico dependencias
 .\install-python-windows.bat
-
+#install sysmonitor
 .\install.bat
 
 # Configurar PowerShell para ejecutar scripts (si es necesario)
