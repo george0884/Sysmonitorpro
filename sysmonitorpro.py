@@ -38,16 +38,18 @@ if IS_WINDOWS:
     try:
         import wmi
         HAS_WMI = True
+        print("[OK] WMI cargado")
     except ImportError:
         HAS_WMI = False
-        print("Advertencia: wmi no instalado. Ejecuta: pip install wmi pywin32")
+        print("[WARN] WMI no disponible - instalar: pip install wmi pywin32")
     
     try:
         import GPUtil
         HAS_GPUTIL = True
+        print("[OK] GPUtil cargado")
     except ImportError:
         HAS_GPUTIL = False
-        print("Advertencia: GPUtil no instalado. Ejecuta: pip install gputil")
+        print("[WARN] GPUtil no disponible - instalar: pip install gputil")
 else:
     HAS_WMI = False
     HAS_GPUTIL = False
@@ -115,12 +117,52 @@ def clear_screen():
     sys.stdout.write("\033[2J\033[H")
     sys.stdout.flush()
 
-# ─── GPU DETECTION ──────────────────────────────────────────────────────────
+# ─── INFORMACIÓN DEL SISTEMA (COMPLETA) ─────────────────────────────────────
+def get_system_info_windows():
+    """Obtiene toda la información del sistema en Windows"""
+    info = {}
+    
+    # Hostname
+    info["hostname"] = platform.node()
+    
+    # Kernel
+    info["kernel"] = platform.release()
+    
+    # Motherboard
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+            r"HARDWARE\DESCRIPTION\System\BIOS")
+        info["mb"] = winreg.QueryValueEx(key, "BaseBoardProduct")[0]
+        winreg.CloseKey(key)
+    except:
+        try:
+            w = wmi.WMI()
+            for board in w.Win32_BaseBoard():
+                info["mb"] = board.Product
+                break
+        except:
+            info["mb"] = "Motherboard"
+    
+    # CPU
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+            r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+        info["cpu_model"] = winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
+        winreg.CloseKey(key)
+    except:
+        info["cpu_model"] = platform.processor()
+    
+    return info
+
+# ─── GPU DETECTION (CORREGIDO) ──────────────────────────────────────────────
 def get_gpu_info_windows():
     gpu_name = "No detectada"
     gpu_usage = 0
     gpu_temp = None
     
+    # Método 1: GPUtil (NVIDIA)
     if HAS_GPUTIL:
         try:
             gpus = GPUtil.getGPUs()
@@ -133,16 +175,34 @@ def get_gpu_info_windows():
         except Exception as e:
             pass
     
+    # Método 2: WMI + OpenHardwareMonitor
     if HAS_WMI:
         try:
             w = wmi.WMI(namespace="root\\OpenHardwareMonitor")
+            # Obtener uso
             for sensor in w.Sensor(SensorType='Load'):
-                if 'gpu' in sensor.Name.lower():
+                sensor_name = sensor.Name.lower() if sensor.Name else ""
+                if 'gpu' in sensor_name:
                     gpu_usage = sensor.Value
+            # Obtener temperatura
             for sensor in w.Sensor(SensorType='Temperature'):
-                if 'gpu' in sensor.Name.lower():
+                sensor_name = sensor.Name.lower() if sensor.Name else ""
+                if 'gpu' in sensor_name:
                     gpu_temp = sensor.Value
+                    if gpu_name == "No detectada":
+                        gpu_name = sensor.Name.replace("Temperature", "").strip()
         except Exception as e:
+            pass
+    
+    # Método 3: WMI estándar (nombre de GPU)
+    if gpu_name == "No detectada" and HAS_WMI:
+        try:
+            w = wmi.WMI()
+            for gpu in w.Win32_VideoController():
+                if gpu.Name and "NVIDIA" in gpu.Name or "AMD" in gpu.Name or "Intel" in gpu.Name:
+                    gpu_name = gpu.Name
+                    break
+        except:
             pass
     
     return gpu_name, gpu_usage, gpu_temp
@@ -176,7 +236,8 @@ def get_cpu_temp_windows():
         if HAS_WMI:
             w = wmi.WMI(namespace="root\\OpenHardwareMonitor")
             for sensor in w.Sensor(SensorType='Temperature'):
-                if 'cpu' in sensor.Name.lower():
+                sensor_name = sensor.Name.lower() if sensor.Name else ""
+                if 'cpu' in sensor_name or 'core' in sensor_name:
                     return sensor.Value
     except:
         pass
@@ -229,7 +290,8 @@ def get_disk_temps():
         try:
             w = wmi.WMI(namespace="root\\OpenHardwareMonitor")
             for sensor in w.Sensor(SensorType='Temperature'):
-                if 'disk' in sensor.Name.lower() or 'hdd' in sensor.Name.lower():
+                sensor_name = sensor.Name.lower() if sensor.Name else ""
+                if 'disk' in sensor_name or 'hdd' in sensor_name or 'nvme' in sensor_name:
                     disk_temps[sensor.Name[:20]] = sensor.Value
         except:
             pass
@@ -246,58 +308,26 @@ def get_disk_temps():
     
     return disk_temps
 
-# ─── DATOS ESTÁTICOS ────────────────────────────────────────────────────────
-def get_static():
-    info = {}
-    
-    if IS_WINDOWS:
-        info["os"] = f"Windows {platform.release()}"
-        info["mb"] = "Motherboard"
-        try:
-            info["cpu_model"] = platform.processor()
-        except:
-            info["cpu_model"] = "CPU"
-    else:
-        try:
-            with open("/etc/os-release") as f:
-                for line in f:
-                    if line.startswith("PRETTY_NAME"):
-                        info["os"] = line.split("=", 1)[1].strip().strip('"')
-                        break
-        except:
-            info["os"] = "Linux"
-        info["mb"] = "Motherboard"
-        try:
-            with open("/proc/cpuinfo") as f:
-                for line in f:
-                    if "model name" in line:
-                        info["cpu_model"] = line.split(":", 1)[1].strip()
-                        break
-        except:
-            info["cpu_model"] = "CPU"
-    
-    info["cores"] = psutil.cpu_count(logical=False) or 1
-    info["threads"] = psutil.cpu_count(logical=True) or 1
-    
-    return info
-
-# ─── VELOCIDAD DE RED ───────────────────────────────────────────────────────
-_prev_net = None
-_prev_net_time = None
-
-def get_net_speed():
-    global _prev_net, _prev_net_time
-    now = time.time()
-    stats = psutil.net_io_counters()
-    rx_s = tx_s = 0.0
-    if _prev_net and _prev_net_time:
-        dt = now - _prev_net_time
-        if dt > 0:
-            rx_s = (stats.bytes_recv - _prev_net.bytes_recv) / dt
-            tx_s = (stats.bytes_sent - _prev_net.bytes_sent) / dt
-    _prev_net = stats
-    _prev_net_time = now
-    return stats, rx_s, tx_s
+# ─── DISCOS USO ─────────────────────────────────────────────────────────────
+def get_disk_usage_windows():
+    """Obtiene uso de discos en Windows (C:, D:, etc.)"""
+    disks = []
+    try:
+        for p in psutil.disk_partitions():
+            if len(p.mountpoint) == 2 and p.mountpoint[1] == ':':
+                try:
+                    usage = psutil.disk_usage(p.mountpoint)
+                    disks.append({
+                        'mount': p.mountpoint,
+                        'used': usage.used,
+                        'total': usage.total,
+                        'percent': usage.percent
+                    })
+                except:
+                    pass
+    except:
+        pass
+    return disks
 
 # ─── MEMORIA VIRTUAL ────────────────────────────────────────────────────────
 def get_swap_or_virtual():
@@ -331,8 +361,26 @@ def get_swap_or_virtual():
             'percent': swap.percent
         }
 
+# ─── VELOCIDAD DE RED ───────────────────────────────────────────────────────
+_prev_net = None
+_prev_net_time = None
+
+def get_net_speed():
+    global _prev_net, _prev_net_time
+    now = time.time()
+    stats = psutil.net_io_counters()
+    rx_s = tx_s = 0.0
+    if _prev_net and _prev_net_time:
+        dt = now - _prev_net_time
+        if dt > 0:
+            rx_s = (stats.bytes_recv - _prev_net.bytes_recv) / dt
+            tx_s = (stats.bytes_sent - _prev_net.bytes_sent) / dt
+    _prev_net = stats
+    _prev_net_time = now
+    return stats, rx_s, tx_s
+
 # ─── RENDER ─────────────────────────────────────────────────────────────────
-def render(static: dict, cols: int, first_render: bool = False):
+def render(system_info: dict, cols: int, first_render: bool = False):
     out_lines = []
     out_lines.append("\033[H")
     
@@ -362,12 +410,14 @@ def render(static: dict, cols: int, first_render: bool = False):
         pass
     
     out_lines.append(f" {M}▶ SISTEMA{NC}\033[K")
-    out_lines.append(f"  {C}OS:{NC} {static['os']:<33} {C}MB:{NC} {static['mb']}\033[K")
+    out_lines.append(f"  {C}Host:{NC} {system_info.get('hostname', 'N/A'):<25} {C}Kernel:{NC} {system_info.get('kernel', 'N/A')}\033[K")
+    out_lines.append(f"  {C}OS:{NC} {system_info['os']:<35}\033[K")
+    out_lines.append(f"  {C}MB:{NC} {system_info.get('mb', 'Motherboard')[:45]}\033[K")
     out_lines.append(f"  {C}Uptime:{NC} {uptime:<20} {C}Load:{NC} {load_s}\033[K")
     out_lines.append(sep(cols))
     
     # CPU
-    out_lines.append(f" {M}▶ CPU{NC}  {D}{static['cpu_model'][:55]}{NC}\033[K")
+    out_lines.append(f" {M}▶ CPU{NC}  {D}{system_info['cpu_model'][:55]}{NC}\033[K")
     
     cpu_pcts = psutil.cpu_percent(percpu=True)
     temps_core, temp_global = get_cpu_temps()
@@ -427,21 +477,18 @@ def render(static: dict, cols: int, first_render: bool = False):
     
     # Discos uso
     out_lines.append(f" {M}▶ DISCOS (USO){NC}\033[K")
-    try:
+    if IS_WINDOWS:
+        disks = get_disk_usage_windows()
+        for disk in disks:
+            out_lines.append(f"  {C}{disk['mount']:<6}{NC} {barra(disk['percent'])}  {C}{humanize(disk['used'])} / {humanize(disk['total'])}{NC}\033[K")
+    else:
         for p in psutil.disk_partitions():
-            try:
-                if IS_WINDOWS:
-                    if len(p.mountpoint) == 2 and p.mountpoint[1] == ':':
-                        usage = psutil.disk_usage(p.mountpoint)
-                        out_lines.append(f"  {C}{p.mountpoint[:4]:<6}{NC} {barra(usage.percent)}  {C}{humanize(usage.used)} / {humanize(usage.total)}{NC}\033[K")
-                else:
-                    if p.mountpoint in ['/', '/home']:
-                        usage = psutil.disk_usage(p.mountpoint)
-                        out_lines.append(f"  {C}{p.mountpoint[:12]:<12}{NC} {barra(usage.percent)}  {C}{humanize(usage.used)} / {humanize(usage.total)}{NC}\033[K")
-            except:
-                pass
-    except:
-        pass
+            if p.mountpoint in ['/', '/home']:
+                try:
+                    usage = psutil.disk_usage(p.mountpoint)
+                    out_lines.append(f"  {C}{p.mountpoint[:12]:<12}{NC} {barra(usage.percent)}  {C}{humanize(usage.used)} / {humanize(usage.total)}{NC}\033[K")
+                except:
+                    pass
     out_lines.append(sep(cols))
     
     # Procesos
@@ -482,21 +529,59 @@ def render(static: dict, cols: int, first_render: bool = False):
 
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 def main():
-    static = get_static()
-    
-    print("Iniciando SysMonitorPro...")
-    print(f"Sistema: {static['os']}")
-    print(f"CPU: {static['cpu_model'][:50]}")
+    # Obtener información del sistema
     if IS_WINDOWS:
-        print(f"WMI disponible: {HAS_WMI}")
-        print(f"GPUtil disponible: {HAS_GPUTIL}")
+        system_info = get_system_info_windows()
+        system_info["os"] = f"Windows {platform.release()}"
+    else:
+        system_info = {}
+        try:
+            with open("/etc/os-release") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME"):
+                        system_info["os"] = line.split("=", 1)[1].strip().strip('"')
+                        break
+        except:
+            system_info["os"] = "Linux"
+        system_info["hostname"] = platform.node()
+        system_info["kernel"] = platform.release()
+        system_info["mb"] = "Motherboard"
+        try:
+            with open("/proc/cpuinfo") as f:
+                for line in f:
+                    if "model name" in line:
+                        system_info["cpu_model"] = line.split(":", 1)[1].strip()
+                        break
+        except:
+            system_info["cpu_model"] = "CPU"
+    
+    # Información de inicio
+    print("=" * 50)
+    print("  SysMonitorPro - Iniciando...")
+    print("=" * 50)
+    print(f"  Hostname: {system_info.get('hostname', 'N/A')}")
+    print(f"  Sistema: {system_info.get('os', 'N/A')}")
+    print(f"  Kernel: {system_info.get('kernel', 'N/A')}")
+    print(f"  CPU: {system_info.get('cpu_model', 'N/A')[:60]}")
+    print(f"  Motherboard: {system_info.get('mb', 'N/A')}")
+    print("-" * 50)
+    
+    if IS_WINDOWS:
+        print(f"  WMI: {'✅ Disponible' if HAS_WMI else '❌ No disponible'}")
+        print(f"  GPUtil: {'✅ Disponible' if HAS_GPUTIL else '❌ No disponible'}")
         if not HAS_WMI:
-            print("Para temperaturas reales instala: pip install wmi pywin32")
-            print("Y ejecuta OpenHardwareMonitor")
+            print("\n  ⚠️  Para temperaturas reales:")
+            print("     pip install wmi pywin32")
+            print("     Ejecutar OpenHardwareMonitor")
         if not HAS_GPUTIL:
-            print("Para GPU instala: pip install gputil")
-    print("Presiona 'q' para salir")
-    time.sleep(2)
+            print("\n  ⚠️  Para GPU:")
+            print("     pip install gputil")
+    else:
+        print("  Sensores: Verificando...")
+    
+    print("\n  Presiona 'q' para salir")
+    print("=" * 50)
+    time.sleep(3)
     
     sys.stdout.write("\033[?1049h\033[?25l")
     sys.stdout.flush()
@@ -522,7 +607,7 @@ def main():
                     first = False
                     needs_resize = False
                 cols = shutil.get_terminal_size().columns
-                render(static, cols, first_render=(first or needs_resize))
+                render(system_info, cols, first_render=(first or needs_resize))
                 ready, _, _ = _sel.select([sys.stdin], [], [], INTERVALO)
                 if ready:
                     key = sys.stdin.read(1).lower()
@@ -549,7 +634,7 @@ def main():
                     last_cols = cols
                     last_lines = lines
                 
-                render(static, cols, first_render=first)
+                render(system_info, cols, first_render=first)
                 first = False
                 
                 start_time = time.time()
