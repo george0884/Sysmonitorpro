@@ -23,7 +23,55 @@
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
 ---
+### 🐧 Linux (todas las distribuciones)
 
+```bash
+# Clonar el repositorio
+git clone https://github.com/george0884/sysmonitorpro.git
+cd sysmonitorpro
+
+# Dar permisos al instalador
+chmod +x install.sh
+
+# Ejecutar instalador
+./install.sh
+```
+
+El instalador:
+- Verifica/instala Python 3 y pip
+- Instala `psutil` (dependencia principal)
+- Pregunta por soporte opcional para GPU
+- Crea configuración en `~/.config/sysmonitorpro/config.json`
+- Pregunta si deseas el comando global `sysmonitor`
+
+### 📦 Por distribución (Linux - manual)
+
+#### 🟠 Debian / Ubuntu / Mint / Pop!_OS
+
+```bash
+sudo apt update
+sudo apt install python3 python3-pip -y
+pip3 install psutil
+```
+
+#### 🔵 Arch Linux / Manjaro / EndeavourOS
+
+```bash
+sudo pacman -S python python-psutil
+```
+
+#### 🟢 Fedora / RHEL / AlmaLinux / Rocky Linux
+
+```bash
+sudo dnf install python3 python3-pip -y
+pip3 install psutil
+```
+
+---
+
+## 🚀 Ejecución
+
+### 🪟 Windows
 ## 📦 Instalación
 
 ### 🪟 Windows 10 / 11
@@ -76,55 +124,6 @@ echo python %~dp0sysmonitorpro.py > sysmonitor.bat
 New-Alias sysmonitor "python C:\ruta\sysmonitorpro.py"
 ```
 
-### 🐧 Linux (todas las distribuciones)
-
-```bash
-# Clonar el repositorio
-git clone https://github.com/george0884/sysmonitorpro.git
-cd sysmonitorpro
-
-# Dar permisos al instalador
-chmod +x install.sh
-
-# Ejecutar instalador
-./install.sh
-```
-
-El instalador:
-- Verifica/instala Python 3 y pip
-- Instala `psutil` (dependencia principal)
-- Pregunta por soporte opcional para GPU
-- Crea configuración en `~/.config/sysmonitorpro/config.json`
-- Pregunta si deseas el comando global `sysmonitor`
-
-### 📦 Por distribución (Linux - manual)
-
-#### 🟠 Debian / Ubuntu / Mint / Pop!_OS
-
-```bash
-sudo apt update
-sudo apt install python3 python3-pip -y
-pip3 install psutil
-```
-
-#### 🔵 Arch Linux / Manjaro / EndeavourOS
-
-```bash
-sudo pacman -S python python-psutil
-```
-
-#### 🟢 Fedora / RHEL / AlmaLinux / Rocky Linux
-
-```bash
-sudo dnf install python3 python3-pip -y
-pip3 install psutil
-```
-
----
-
-## 🚀 Ejecución
-
-### 🪟 Windows
 
 ```powershell
 # Desde PowerShell o CMD
