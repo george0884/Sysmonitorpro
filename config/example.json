@@ -1,0 +1,10 @@
+{
+    "intervalo": 2.0,
+    "mostrar_gpu": false,
+    "mostrar_discos": true,
+    "mostrar_red": true,
+    "mostrar_top": true,
+    "grafico_tamano": 50,
+    "historial_segundos": 120,
+    "interfaz_red": "eth0"
+}
