@@ -1,0 +1,16 @@
+# SysMonitorPro - Dependencias para Linux
+# Instalar con: pip install -r requirements.txt
+
+# Principal
+psutil>=5.8.0
+
+# Opcional: Soporte para GPU
+gputil>=1.4.0
+pyamdgpuinfo>=0.1.0
+
+# Opcional: Compilar a binario (solo desarrollo)
+pyinstaller>=5.0
+
+# Opcional: Mejores gráficos (para versiones futuras)
+# plotly>=5.0.0
+# matplotlib>=3.0.0
