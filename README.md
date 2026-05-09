@@ -107,6 +107,11 @@ pip install wmi pywin32 GPUtil
 git clone https://github.com/george0884/sysmonitorpro.git
 cd sysmonitorpro
 
+#instalador automatico dependencias
+.\install-python-windows.bat
+
+.\install.bat
+
 # Configurar PowerShell para ejecutar scripts (si es necesario)
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
