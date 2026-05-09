@@ -1,12 +1,6 @@
-
-```markdown
 # ⚡ SysMonitorPro
 
-```
-# Generar ASCII art con figlet
-figlet -f standard "SysMonitorPro"
-
-```
+**Monitor de sistema avanzado para Linux**
 
 > **Monitor de sistema en tiempo real para Linux** — CPU por núcleo, temperatura, frecuencia, RAM, SWAP, red con velocidad instantánea, discos, procesos, gráficos históricos y salida JSON. Todo en terminal, sin dependencias pesadas.
 
