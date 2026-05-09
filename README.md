@@ -1,5 +1,3 @@
-¡Tienes toda la razón! Tu README solo tiene instrucciones para Linux. Te paso el **README completo con sección para Windows 10/11**:
-
 ```markdown
 # ⚡ SysMonitorPro
 
@@ -442,6 +440,7 @@ export PATH="$HOME/.local/bin:$PATH"
 sysmonitor --help
 ```
 
+
 </div>
 ```
 
@@ -456,6 +455,4 @@ sysmonitor --help
 | Integración | Ejemplo para PowerShell |
 | Compilado | Instrucciones para crear `.exe` |
 | Requisitos | Tabla comparativa Windows/Linux |
-| Solución de problemas | Sección específica para Windows |
-
-¿Quieres que ajuste algo más del README?
+| Solución de problemas | Sección específica para Windows
