@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# SysMonitorPro específico
+~/.config/sysmonitorpro/
+*.log
+config.local.json
