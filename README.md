@@ -39,17 +39,19 @@ El instalador:
 ### 📦 Por distribución (Linux - manual)
 
 #### 🟠 Debian / Ubuntu / Mint / Pop!_OS
-
-```bash
 # Clonar el repositorio
+```bash
 git clone https://github.com/george0884/sysmonitorpro.git
 cd Sysmonitorpro
-
+```
 # Dar permisos al instalador
+```bash
 chmod +x install.sh
-
+```
 # Ejecutar instalador
+```bash
 ./install.sh
+```
 
 #Manualmente
 sudo apt update
