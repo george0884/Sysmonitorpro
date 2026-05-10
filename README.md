@@ -53,7 +53,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-#Comando encadenado
+# Comando encadenado
 ```bash
 git clone https://github.com/george0884/sysmonitorpro.git && cd sysmonitorpro && chmod +x install.sh && ./install.sh
 ```
