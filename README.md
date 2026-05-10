@@ -22,7 +22,7 @@
 
 
 ```
-![linux](https://github.com/george0884/Sysmonitorpro/blob/205154ebb03dbc1165824ef38e69b7358cbb3b7e/Linux.png)
+![linux](https://github.com/george0884/Sysmonitorpro/blob/e1ce30da05377bb8ddd6c9a1c66d12fee7726e09/Linux.png)
 
 ![windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
 
@@ -43,7 +43,7 @@ El instalador:
 ```bash
 # Clonar el repositorio
 git clone https://github.com/george0884/sysmonitorpro.git
-cd sysmonitorpro
+cd Sysmonitorpro
 
 # Dar permisos al instalador
 chmod +x install.sh
@@ -109,7 +109,7 @@ pip install wmi pywin32 GPUtil
 ```powershell
 # Clonar o descargar el repositorio
 git clone https://github.com/george0884/sysmonitorpro.git
-cd sysmonitorpro
+cd Sysmonitorpro
 #instalador automatico dependencias
 .\install-python-windows.bat
 #install sysmonitor
