@@ -42,7 +42,7 @@ El instalador:
 # Clonar el repositorio
 ```bash
 git clone https://github.com/george0884/sysmonitorpro.git
-cd Sysmonitorpro
+cd sysmonitorpro
 ```
 # Dar permisos al instalador
 ```bash
@@ -111,7 +111,7 @@ pip install wmi pywin32 GPUtil
 ```powershell
 # Clonar o descargar el repositorio
 git clone https://github.com/george0884/sysmonitorpro.git
-cd Sysmonitorpro
+cd sysmonitorpro
 #instalador automatico dependencias
 .\install-python-windows.bat
 #install sysmonitor
