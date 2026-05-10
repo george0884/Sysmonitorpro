@@ -22,7 +22,7 @@
 
 
 ```
-![linux](https://github.com/george0884/Sysmonitorpro/blob/e1ce30da05377bb8ddd6c9a1c66d12fee7726e09/Linux.png)
+![linux](https://github.com/george0884/Sysmonitorpro/blob/47a87de7c20065e38f3af142189b2c8c9b2ad592/Linux.png)
 
 ![windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
 
