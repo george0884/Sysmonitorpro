@@ -3,8 +3,6 @@
 
 **Monitor de sistema avanzado para Windows/Linux**
 
-> **Monitor de sistema en tiempo real** — CPU por núcleo, temperatura, frecuencia, RAM, SWAP, red con velocidad instantánea, discos, procesos, gráficos históricos y salida JSON. Compatible con Windows 10/11 y Linux.
-
 ---
 
 ## ✨ Características
@@ -22,22 +20,12 @@
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
+
+```
 ![windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
 
----
 ### 🐧 Linux (todas las distribuciones)
 
-```bash
-# Clonar el repositorio
-git clone https://github.com/george0884/sysmonitorpro.git
-cd sysmonitorpro
-
-# Dar permisos al instalador
-chmod +x install.sh
-
-# Ejecutar instalador
-./install.sh
-```
 
 El instalador:
 - Verifica/instala Python 3 y pip
@@ -51,6 +39,17 @@ El instalador:
 #### 🟠 Debian / Ubuntu / Mint / Pop!_OS
 
 ```bash
+# Clonar el repositorio
+git clone https://github.com/george0884/sysmonitorpro.git
+cd sysmonitorpro
+
+# Dar permisos al instalador
+chmod +x install.sh
+
+# Ejecutar instalador
+./install.sh
+
+#Manualmente
 sudo apt update
 sudo apt install python3 python3-pip -y
 pip3 install psutil
