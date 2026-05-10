@@ -50,12 +50,16 @@ chmod +x install.sh
 ```
 # Ejecutar instalador
 ```bash
-git clone https://github.com/george0884/sysmonitorpro.git && cd sysmonitorpro && chmod +x install.sh && ./install.sh
+./install.sh
 ```
+
 #Comando encadenado
 ```bash
-./install.sh
+git clone https://github.com/george0884/sysmonitorpro.git && cd sysmonitorpro && chmod +x install.sh && ./install.sh
+```
+
 #Manualmente
+```bash
 sudo apt update
 sudo apt install python3 python3-pip -y
 pip3 install psutil
