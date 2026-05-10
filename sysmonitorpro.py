@@ -113,7 +113,7 @@ def clear_screen():
     sys.stdout.write("\033[2J\033[H")
     sys.stdout.flush()
 
-# ─── INFORMACIÓN DEL SISTEMA ─────────────────────────────────────────────────
+# ─── INFORMACIÓN DEL SISTEMA (CORREGIDO) ─────────────────────────────────────
 def get_system_info():
     info = {}
     
@@ -140,6 +140,7 @@ def get_system_info():
         except:
             info["cpu_model"] = platform.processor()
     else:
+        # LINUX
         try:
             with open("/etc/os-release") as f:
                 for line in f:
@@ -148,9 +149,38 @@ def get_system_info():
                         break
         except:
             info["os"] = "Linux"
+        
         info["hostname"] = platform.node()
         info["kernel"] = platform.release()
-        info["mb"] = "Motherboard"
+        
+        # PLACA MADRE
+        mb_name = "Motherboard"
+        try:
+            with open("/sys/class/dmi/id/board_name") as f:
+                mb_name = f.read().strip()
+                if not mb_name:
+                    mb_name = "Motherboard"
+        except:
+            pass
+        
+        if mb_name == "Motherboard":
+            try:
+                with open("/sys/class/dmi/id/product_name") as f:
+                    mb_name = f.read().strip()
+            except:
+                pass
+        
+        try:
+            with open("/sys/class/dmi/id/board_vendor") as f:
+                vendor = f.read().strip()
+                if vendor and vendor != "To be filled by O.E.M.":
+                    mb_name = f"{vendor} {mb_name}"
+        except:
+            pass
+        
+        info["mb"] = mb_name[:45]
+        
+        # CPU
         try:
             with open("/proc/cpuinfo") as f:
                 for line in f:
@@ -165,56 +195,13 @@ def get_system_info():
     
     return info
 
-# ─── GPU DETECTION LINUX (PARA AMD RADEON) ───────────────────────────────────
+# ─── GPU DETECTION LINUX (NVIDIA, AMD, INTEL) ────────────────────────────────
 def get_gpu_info_linux():
     gpu_name = "No detectada"
     gpu_usage = 0
     gpu_temp = None
     
-    # DETECCIÓN AMD por sysfs (para Radeon Vega/Ryzen)
-    try:
-        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
-        for card in sorted(cards):
-            vendor_f = f"/sys/class/drm/{card}/device/vendor"
-            if os.path.exists(vendor_f):
-                vendor = open(vendor_f).read().strip()
-                
-                # AMD (0x1002)
-                if vendor == "0x1002":
-                    # Obtener nombre
-                    try:
-                        name_f = f"/sys/class/drm/{card}/device/product_name"
-                        if os.path.exists(name_f):
-                            gpu_name = open(name_f).read().strip()
-                        else:
-                            gpu_name = "AMD Radeon GPU"
-                    except:
-                        gpu_name = "AMD Radeon GPU"
-                    
-                    # Uso
-                    busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
-                    if os.path.exists(busy_f):
-                        try:
-                            gpu_usage = float(open(busy_f).read().strip())
-                        except:
-                            pass
-                    
-                    # Temperatura
-                    hwmon_dir = f"/sys/class/drm/{card}/device/hwmon"
-                    if os.path.isdir(hwmon_dir):
-                        for hw in os.listdir(hwmon_dir):
-                            temp_f = f"/sys/class/drm/{card}/device/hwmon/{hw}/temp1_input"
-                            if os.path.exists(temp_f):
-                                try:
-                                    gpu_temp = int(open(temp_f).read().strip()) / 1000
-                                except:
-                                    pass
-                    
-                    return gpu_name, gpu_usage, gpu_temp
-    except:
-        pass
-    
-    # NVIDIA
+    # ─── NVIDIA (nvidia-smi) ────────────────────────────────────────────────
     if shutil.which("nvidia-smi"):
         try:
             result = subprocess.check_output(
@@ -231,7 +218,46 @@ def get_gpu_info_linux():
         except:
             pass
     
-    # AMD con rocm-smi
+    # ─── AMD (sysfs - para Radeon Vega/Ryzen) ───────────────────────────────
+    try:
+        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
+        for card in sorted(cards):
+            vendor_f = f"/sys/class/drm/{card}/device/vendor"
+            if os.path.exists(vendor_f):
+                vendor = open(vendor_f).read().strip()
+                
+                if vendor == "0x1002":  # AMD
+                    try:
+                        name_f = f"/sys/class/drm/{card}/device/product_name"
+                        if os.path.exists(name_f):
+                            gpu_name = open(name_f).read().strip()
+                        else:
+                            gpu_name = "AMD Radeon GPU"
+                    except:
+                        gpu_name = "AMD Radeon GPU"
+                    
+                    busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
+                    if os.path.exists(busy_f):
+                        try:
+                            gpu_usage = float(open(busy_f).read().strip())
+                        except:
+                            pass
+                    
+                    hwmon_dir = f"/sys/class/drm/{card}/device/hwmon"
+                    if os.path.isdir(hwmon_dir):
+                        for hw in os.listdir(hwmon_dir):
+                            temp_f = f"/sys/class/drm/{card}/device/hwmon/{hw}/temp1_input"
+                            if os.path.exists(temp_f):
+                                try:
+                                    gpu_temp = int(open(temp_f).read().strip()) / 1000
+                                except:
+                                    pass
+                    
+                    return gpu_name, gpu_usage, gpu_temp
+    except:
+        pass
+    
+    # ─── AMD (rocm-smi) ─────────────────────────────────────────────────────
     if shutil.which("rocm-smi"):
         try:
             result = subprocess.check_output(
@@ -252,14 +278,14 @@ def get_gpu_info_linux():
         except:
             pass
     
-    # Intel
+    # ─── Intel (sysfs) ──────────────────────────────────────────────────────
     try:
         cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
         for card in sorted(cards):
             vendor_f = f"/sys/class/drm/{card}/device/vendor"
             if os.path.exists(vendor_f):
                 vendor = open(vendor_f).read().strip()
-                if vendor == "0x8086":
+                if vendor == "0x8086":  # Intel
                     gpu_name = "Intel GPU"
                     busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
                     if os.path.exists(busy_f):
@@ -268,7 +294,7 @@ def get_gpu_info_linux():
     except:
         pass
     
-    # Fallback con lspci
+    # ─── Fallback (lspci) ───────────────────────────────────────────────────
     if shutil.which("lspci"):
         try:
             result = subprocess.check_output(
@@ -677,6 +703,10 @@ def main():
             print(f"\n  {Y}⚠️  Para temperaturas reales:{NC}")
             print(f"     pip install wmi pywin32")
             print(f"     Ejecutar OpenHardwareMonitor")
+    else:
+        # Detectar GPU en Linux
+        gpu_name, _, _ = get_gpu_info_linux()
+        print(f"  {C}GPU:{NC}      {gpu_name[:45]}")
     print("-" * 60)
     print(f"  {W}Presiona 'q' para salir{NC}")
     print("=" * 60)
