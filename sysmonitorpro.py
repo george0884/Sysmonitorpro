@@ -113,7 +113,7 @@ def clear_screen():
     sys.stdout.write("\033[2J\033[H")
     sys.stdout.flush()
 
-# ─── INFORMACIÓN DEL SISTEMA (CORREGIDO) ─────────────────────────────────────
+# ─── INFORMACIÓN DEL SISTEMA ─────────────────────────────────────────────────
 def get_system_info():
     info = {}
     
@@ -154,31 +154,33 @@ def get_system_info():
         info["kernel"] = platform.release()
         
         # PLACA MADRE
-        mb_name = "Motherboard"
-        try:
-            with open("/sys/class/dmi/id/board_name") as f:
-                mb_name = f.read().strip()
-                if not mb_name:
-                    mb_name = "Motherboard"
-        except:
-            pass
-        
-        if mb_name == "Motherboard":
-            try:
-                with open("/sys/class/dmi/id/product_name") as f:
-                    mb_name = f.read().strip()
-            except:
-                pass
-        
+        mb_parts = []
         try:
             with open("/sys/class/dmi/id/board_vendor") as f:
                 vendor = f.read().strip()
                 if vendor and vendor != "To be filled by O.E.M.":
-                    mb_name = f"{vendor} {mb_name}"
+                    mb_parts.append(vendor)
         except:
             pass
         
-        info["mb"] = mb_name[:45]
+        try:
+            with open("/sys/class/dmi/id/board_name") as f:
+                name = f.read().strip()
+                if name and name != "To be filled by O.E.M.":
+                    mb_parts.append(name)
+        except:
+            pass
+        
+        try:
+            with open("/sys/class/dmi/id/board_version") as f:
+                version = f.read().strip()
+                if version and version != "To be filled by O.E.M." and version != "x.x":
+                    mb_parts.append(f"Rev.{version}")
+        except:
+            pass
+        
+        info["mb"] = " ".join(mb_parts) if mb_parts else "Motherboard"
+        info["mb"] = info["mb"][:50]
         
         # CPU
         try:
@@ -195,121 +197,229 @@ def get_system_info():
     
     return info
 
-# ─── GPU DETECTION LINUX (NVIDIA, AMD, INTEL) ────────────────────────────────
+# ─── GPU DETECTION LINUX (DINÁMICA - como inxi) ─────────────────────────────
 def get_gpu_info_linux():
     gpu_name = "No detectada"
     gpu_usage = 0
     gpu_temp = None
     
-    # ─── NVIDIA (nvidia-smi) ────────────────────────────────────────────────
-    if shutil.which("nvidia-smi"):
+    # ─── MÉTODO 1: glxinfo (nombre comercial real) ─────────────────────────
+    if shutil.which("glxinfo"):
         try:
             result = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=name,utilization.gpu,temperature.gpu",
-                 "--format=csv,noheader,nounits"],
-                timeout=2, stderr=subprocess.DEVNULL
-            ).decode().strip()
-            if result:
-                parts = result.split(',')
-                gpu_name = parts[0].strip()
-                gpu_usage = float(parts[1].strip())
-                gpu_temp = float(parts[2].strip())
-                return gpu_name, gpu_usage, gpu_temp
-        except:
-            pass
-    
-    # ─── AMD (sysfs - para Radeon Vega/Ryzen) ───────────────────────────────
-    try:
-        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
-        for card in sorted(cards):
-            vendor_f = f"/sys/class/drm/{card}/device/vendor"
-            if os.path.exists(vendor_f):
-                vendor = open(vendor_f).read().strip()
-                
-                if vendor == "0x1002":  # AMD
-                    try:
-                        name_f = f"/sys/class/drm/{card}/device/product_name"
-                        if os.path.exists(name_f):
-                            gpu_name = open(name_f).read().strip()
-                        else:
-                            gpu_name = "AMD Radeon GPU"
-                    except:
-                        gpu_name = "AMD Radeon GPU"
-                    
-                    busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
-                    if os.path.exists(busy_f):
-                        try:
-                            gpu_usage = float(open(busy_f).read().strip())
-                        except:
-                            pass
-                    
-                    hwmon_dir = f"/sys/class/drm/{card}/device/hwmon"
-                    if os.path.isdir(hwmon_dir):
-                        for hw in os.listdir(hwmon_dir):
-                            temp_f = f"/sys/class/drm/{card}/device/hwmon/{hw}/temp1_input"
-                            if os.path.exists(temp_f):
-                                try:
-                                    gpu_temp = int(open(temp_f).read().strip()) / 1000
-                                except:
-                                    pass
-                    
-                    return gpu_name, gpu_usage, gpu_temp
-    except:
-        pass
-    
-    # ─── AMD (rocm-smi) ─────────────────────────────────────────────────────
-    if shutil.which("rocm-smi"):
-        try:
-            result = subprocess.check_output(
-                ["rocm-smi", "--showuse", "--showtemp"],
+                ["glxinfo", "-B"],
                 timeout=2, stderr=subprocess.DEVNULL
             ).decode()
             for line in result.split('\n'):
-                if 'GPU' in line and '%' in line:
-                    parts = line.split()
-                    for i, p in enumerate(parts):
-                        if '%' in p:
-                            gpu_usage = float(p.replace('%', ''))
-                        if '°C' in p or 'c' in p.lower():
-                            gpu_temp = float(p.replace('°C', '').replace('c', ''))
-            if gpu_usage > 0 or gpu_temp:
-                gpu_name = "AMD GPU"
-                return gpu_name, gpu_usage, gpu_temp
+                if "Device:" in line or "OpenGL renderer string:" in line:
+                    gpu_name = line.split(":", 1)[1].strip()
+                    # Limpiar nombres de AMD
+                    if "AMD" in gpu_name or "Radeon" in gpu_name:
+                        gpu_name = gpu_name.replace("AMD", "").strip()
+                        gpu_name = f"AMD {gpu_name}"
+                    break
         except:
             pass
     
-    # ─── Intel (sysfs) ──────────────────────────────────────────────────────
-    try:
-        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
-        for card in sorted(cards):
-            vendor_f = f"/sys/class/drm/{card}/device/vendor"
-            if os.path.exists(vendor_f):
-                vendor = open(vendor_f).read().strip()
-                if vendor == "0x8086":  # Intel
-                    gpu_name = "Intel GPU"
-                    busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
-                    if os.path.exists(busy_f):
-                        gpu_usage = float(open(busy_f).read().strip())
-                    return gpu_name, gpu_usage, gpu_temp
-    except:
-        pass
-    
-    # ─── Fallback (lspci) ───────────────────────────────────────────────────
-    if shutil.which("lspci"):
+    # ─── MÉTODO 2: lspci (detalle completo) ─────────────────────────────────
+    if gpu_name == "No detectada" and shutil.which("lspci"):
         try:
             result = subprocess.check_output(
-                ["lspci", "|", "grep", "-E", "VGA|3D"],
+                ["lspci", "|", "grep", "-E", "VGA|3D", "|", "head", "-1"],
                 shell=True, timeout=2, stderr=subprocess.DEVNULL
             ).decode().strip()
             if result:
-                gpu_name = result.split(':')[-1].strip()[:40]
+                # Extraer después del primer ":"
+                parts = result.split(':', 2)
+                if len(parts) >= 3:
+                    gpu_name = parts[2].strip()
+                else:
+                    gpu_name = result.split(':', 1)[1].strip()
+                # Limpiar
+                gpu_name = gpu_name.replace("[AMD/ATI]", "").replace("[AMD]", "").strip()
+                if "AMD" not in gpu_name and ("Radeon" in gpu_name or "Vega" in gpu_name):
+                    gpu_name = f"AMD {gpu_name}"
         except:
             pass
     
-    if gpu_name != "No detectada" and gpu_usage == 0:
-        gpu_usage = psutil.cpu_percent() * 0.5
+    # ─── MÉTODO 3: NVIDIA (nvidia-smi) ─────────────────────────────────────
+    if gpu_name == "No detectada" and shutil.which("nvidia-smi"):
+        try:
+            result = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                timeout=2, stderr=subprocess.DEVNULL
+            ).decode().strip()
+            if result:
+                gpu_name = result
+        except:
+            pass
     
-    return gpu_name, gpu_usage, gpu_temp
+    # ─── MÉTODO 4: sysfs (alternativa) ──────────────────────────────────────
+    if gpu_name == "No detectada":
+        try:
+            cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
+            for card in sorted(cards):
+                vendor_f = f"/sys/class/drm/{card}/device/vendor"
+                if os.path.exists(vendor_f):
+                    vendor = open(vendor_f).read().strip()
+                    if vendor == "0x1002":  # AMD
+                        name_f = f"/sys/class/drm/{card}/device/product_name"
+                        if os.path.exists(name_f):
+                            gpu_name = open(name_f).read().strip()
+                    elif vendor == "0x8086":  # Intel
+                        gpu_name = "Intel Graphics"
+                    elif vendor == "0x10de":  # NVIDIA
+                        gpu_name = "NVIDIA GPU"
+        except:
+            pass
+    
+    # ─── Obtener uso y temperatura ─────────────────────────────────────────
+    if gpu_name != "No detectada":
+        # Uso (aproximado basado en CPU)
+        gpu_usage = psutil.cpu_percent() * 0.6
+        
+        # Temperatura para AMD
+        try:
+            cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
+            for card in cards:
+                hwmon_dir = f"/sys/class/drm/{card}/device/hwmon"
+                if os.path.isdir(hwmon_dir):
+                    for hw in os.listdir(hwmon_dir):
+                        temp_f = f"/sys/class/drm/{card}/device/hwmon/{hw}/temp1_input"
+                        if os.path.exists(temp_f):
+                            gpu_temp = int(open(temp_f).read().strip()) / 1000
+                            break
+        except:
+            pass
+    
+    return gpu_name[:50], gpu_usage, gpu_temp
+
+# ─── DISCOS COMPLETOS (TODOS LOS DISCOS FÍSICOS) ────────────────────────────
+def get_all_disks_linux():
+    """Obtiene todos los discos físicos (NVMe, SATA, SSD) con modelo y tamaño"""
+    disks = []
+    
+    # Método 1: lsblk
+    if shutil.which("lsblk"):
+        try:
+            result = subprocess.check_output(
+                ["lsblk", "-d", "-o", "NAME,MODEL,SIZE,TYPE", "-J"],
+                timeout=3, stderr=subprocess.DEVNULL
+            ).decode()
+            import json
+            data = json.loads(result)
+            for device in data.get("blockdevices", []):
+                if device.get("type") == "disk":
+                    model = device.get("model", "Unknown").strip()
+                    if not model or model == "Unknown":
+                        model = device.get("name", "Unknown")
+                    size = device.get("size", "0B")
+                    name = device.get("name", "")
+                    disks.append({
+                        'name': f"/dev/{name}",
+                        'model': model[:25],
+                        'size': size,
+                        'used': 0,
+                        'percent': 0
+                    })
+        except:
+            pass
+    
+    # Método 2: /sys/block (fallback)
+    if not disks:
+        try:
+            for dev in os.listdir("/sys/block"):
+                if dev.startswith(("sd", "nvme", "hd", "vd")):
+                    size_file = f"/sys/block/{dev}/size"
+                    if os.path.exists(size_file):
+                        sectors = int(open(size_file).read().strip())
+                        size_bytes = sectors * 512
+                        size_gb = size_bytes / (1024**3)
+                        
+                        # Intentar obtener modelo
+                        model = "Unknown"
+                        model_file = f"/sys/block/{dev}/device/model"
+                        if os.path.exists(model_file):
+                            model = open(model_file).read().strip()
+                        
+                        disks.append({
+                            'name': f"/dev/{dev}",
+                            'model': model[:25],
+                            'size': f"{size_gb:.1f}G",
+                            'used': 0,
+                            'percent': 0
+                        })
+        except:
+            pass
+    
+    # Agregar uso de cada disco (usando psutil para particiones)
+    for disk in disks:
+        try:
+            # Buscar particiones de este disco
+            total_used = 0
+            total_size = 0
+            for part in psutil.disk_partitions():
+                if part.device.startswith(disk['name']):
+                    try:
+                        usage = psutil.disk_usage(part.mountpoint)
+                        total_used += usage.used
+                        total_size += usage.total
+                    except:
+                        pass
+            if total_size > 0:
+                disk['used'] = total_used
+                disk['percent'] = (total_used / total_size) * 100
+            else:
+                # Si no hay particiones montadas, mostrar solo modelo
+                disk['used'] = 0
+                disk['percent'] = 0
+        except:
+            pass
+    
+    return disks
+
+def get_all_disks_windows():
+    """Obtiene todos los discos físicos en Windows"""
+    disks = []
+    try:
+        import wmi
+        w = wmi.WMI()
+        for disk in w.Win32_DiskDrive():
+            size_bytes = int(disk.Size) if disk.Size else 0
+            size_gb = size_bytes / (1024**3)
+            disks.append({
+                'name': disk.Caption or disk.Model,
+                'model': (disk.Model or "Unknown")[:25],
+                'size': f"{size_gb:.1f}G",
+                'used': 0,
+                'percent': 0
+            })
+    except:
+        pass
+    
+    # Si no hay WMI, usar psutil
+    if not disks:
+        try:
+            for part in psutil.disk_partitions():
+                if len(part.mountpoint) >= 2 and part.mountpoint[1] == ':':
+                    usage = psutil.disk_usage(part.mountpoint)
+                    disks.append({
+                        'name': part.device,
+                        'model': part.device[:25],
+                        'size': humanize(usage.total),
+                        'used': usage.used,
+                        'percent': usage.percent
+                    })
+        except:
+            pass
+    
+    return disks
+
+def get_all_disks():
+    if IS_WINDOWS:
+        return get_all_disks_windows()
+    else:
+        return get_all_disks_linux()
 
 # ─── GPU DETECTION WINDOWS ──────────────────────────────────────────────────
 def get_gpu_info_windows():
@@ -447,39 +557,6 @@ def get_swap_or_virtual():
             'free': swap.free,
             'percent': swap.percent
         }
-
-# ─── DISCOS ──────────────────────────────────────────────────────────────────
-def get_all_disks():
-    disks = []
-    try:
-        for partition in psutil.disk_partitions():
-            if IS_WINDOWS:
-                if len(partition.mountpoint) >= 2 and partition.mountpoint[1] == ':':
-                    try:
-                        usage = psutil.disk_usage(partition.mountpoint)
-                        disks.append({
-                            'mount': partition.mountpoint,
-                            'used': usage.used,
-                            'total': usage.total,
-                            'percent': usage.percent
-                        })
-                    except:
-                        pass
-            else:
-                if partition.mountpoint in ['/', '/home']:
-                    try:
-                        usage = psutil.disk_usage(partition.mountpoint)
-                        disks.append({
-                            'mount': partition.mountpoint,
-                            'used': usage.used,
-                            'total': usage.total,
-                            'percent': usage.percent
-                        })
-                    except:
-                        pass
-    except:
-        pass
-    return disks
 
 # ─── TEMPERATURAS CPU ───────────────────────────────────────────────────────
 def get_cpu_temp_windows():
@@ -637,11 +714,14 @@ def render(system_info: dict, cols: int, first_render: bool = False):
     out_lines.append(f"  {C}Total:{NC} ↓ {humanize(net_stats.bytes_recv)}  ↑ {humanize(net_stats.bytes_sent)}\033[K")
     out_lines.append(sep(cols))
     
-    # DISCOS
-    out_lines.append(f" {M}▶ DISCOS{NC}\033[K")
+    # DISCOS FÍSICOS
+    out_lines.append(f" {M}▶ DISCOS FÍSICOS{NC}\033[K")
     disks = get_all_disks()
     for disk in disks:
-        out_lines.append(f"  {C}{disk['mount']:<8}{NC} {barra(disk['percent'])}  {C}{humanize(disk['used'])} / {humanize(disk['total'])}{NC}\033[K")
+        if disk['percent'] > 0:
+            out_lines.append(f"  {C}{disk['model'][:20]:<20}{NC} {barra(disk['percent'])}  {C}{humanize(disk['used'])} / {disk['size']}{NC}\033[K")
+        else:
+            out_lines.append(f"  {C}{disk['model'][:20]:<20}{NC} {D}[    ]{NC}     {C}{disk['size']}{NC}\033[K")
     if not disks:
         out_lines.append(f"  {D}No se detectaron discos{NC}\033[K")
     out_lines.append(sep(cols))
@@ -704,7 +784,6 @@ def main():
             print(f"     pip install wmi pywin32")
             print(f"     Ejecutar OpenHardwareMonitor")
     else:
-        # Detectar GPU en Linux
         gpu_name, _, _ = get_gpu_info_linux()
         print(f"  {C}GPU:{NC}      {gpu_name[:45]}")
     print("-" * 60)
