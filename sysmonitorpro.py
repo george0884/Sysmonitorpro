@@ -165,13 +165,13 @@ def get_system_info():
     
     return info
 
-# ─── GPU DETECTION LINUX (CORREGIDO PARA AMD) ────────────────────────────────
+# ─── GPU DETECTION LINUX (PARA AMD RADEON) ───────────────────────────────────
 def get_gpu_info_linux():
     gpu_name = "No detectada"
     gpu_usage = 0
     gpu_temp = None
     
-    # DETECCIÓN AMD por sysfs (tu GPU Radeon Vega)
+    # DETECCIÓN AMD por sysfs (para Radeon Vega/Ryzen)
     try:
         cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
         for card in sorted(cards):
@@ -181,7 +181,7 @@ def get_gpu_info_linux():
                 
                 # AMD (0x1002)
                 if vendor == "0x1002":
-                    # Obtener nombre de la GPU
+                    # Obtener nombre
                     try:
                         name_f = f"/sys/class/drm/{card}/device/product_name"
                         if os.path.exists(name_f):
@@ -191,7 +191,7 @@ def get_gpu_info_linux():
                     except:
                         gpu_name = "AMD Radeon GPU"
                     
-                    # Obtener uso (gpu_busy_percent)
+                    # Uso
                     busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
                     if os.path.exists(busy_f):
                         try:
@@ -199,7 +199,7 @@ def get_gpu_info_linux():
                         except:
                             pass
                     
-                    # Obtener temperatura
+                    # Temperatura
                     hwmon_dir = f"/sys/class/drm/{card}/device/hwmon"
                     if os.path.isdir(hwmon_dir):
                         for hw in os.listdir(hwmon_dir):
@@ -211,10 +211,10 @@ def get_gpu_info_linux():
                                     pass
                     
                     return gpu_name, gpu_usage, gpu_temp
-    except Exception as e:
+    except:
         pass
     
-    # NVIDIA (nvidia-smi)
+    # NVIDIA
     if shutil.which("nvidia-smi"):
         try:
             result = subprocess.check_output(
@@ -231,7 +231,7 @@ def get_gpu_info_linux():
         except:
             pass
     
-    # AMD (rocm-smi)
+    # AMD con rocm-smi
     if shutil.which("rocm-smi"):
         try:
             result = subprocess.check_output(
@@ -268,7 +268,7 @@ def get_gpu_info_linux():
     except:
         pass
     
-    # lspci (fallback)
+    # Fallback con lspci
     if shutil.which("lspci"):
         try:
             result = subprocess.check_output(
@@ -677,5 +677,76 @@ def main():
             print(f"\n  {Y}⚠️  Para temperaturas reales:{NC}")
             print(f"     pip install wmi pywin32")
             print(f"     Ejecutar OpenHardwareMonitor")
+    print("-" * 60)
+    print(f"  {W}Presiona 'q' para salir{NC}")
+    print("=" * 60)
+    time.sleep(2)
+    
+    sys.stdout.write("\033[?1049h\033[?25l")
+    sys.stdout.flush()
+    psutil.cpu_percent(percpu=True)
+    time.sleep(0.1)
+    
+    if not IS_WINDOWS:
+        import select as _sel
+        import tty
+        import termios
+        fd = sys.stdin.fileno()
+        old_cfg = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            first = True
+            needs_resize = False
+            while True:
+                if resize_event.is_set():
+                    needs_resize = True
+                    resize_event.clear()
+                if needs_resize or first:
+                    clear_screen()
+                    first = False
+                    needs_resize = False
+                cols = shutil.get_terminal_size().columns
+                render(system_info, cols, first_render=(first or needs_resize))
+                ready, _, _ = _sel.select([sys.stdin], [], [], INTERVALO)
+                if ready:
+                    key = sys.stdin.read(1).lower()
+                    if key == 'q':
+                        break
+                    elif key == '\x12':
+                        needs_resize = True
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_cfg)
     else:
-        # Detectar GPU en Linux
+        try:
+            import msvcrt
+            first = True
+            last_cols = 0
+            last_lines = 0
+            
+            while True:
+                cols = shutil.get_terminal_size().columns
+                lines = shutil.get_terminal_size().lines
+                
+                if cols != last_cols or lines != last_lines or first:
+                    clear_screen()
+                    first = True
+                    last_cols = cols
+                    last_lines = lines
+                
+                render(system_info, cols, first_render=first)
+                first = False
+                
+                start_time = time.time()
+                while time.time() - start_time < INTERVALO:
+                    if msvcrt.kbhit():
+                        key = msvcrt.getch().decode('ascii', errors='ignore').lower()
+                        if key == 'q':
+                            salir()
+                    time.sleep(0.05)
+        except:
+            pass
+    
+    salir()
+
+if __name__ == "__main__":
+    main()
