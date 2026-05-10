@@ -165,7 +165,127 @@ def get_system_info():
     
     return info
 
-# ─── GPU DETECTION (CORREGIDO) ──────────────────────────────────────────────
+# ─── GPU DETECTION LINUX (CORREGIDO PARA AMD) ────────────────────────────────
+def get_gpu_info_linux():
+    gpu_name = "No detectada"
+    gpu_usage = 0
+    gpu_temp = None
+    
+    # DETECCIÓN AMD por sysfs (tu GPU Radeon Vega)
+    try:
+        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
+        for card in sorted(cards):
+            vendor_f = f"/sys/class/drm/{card}/device/vendor"
+            if os.path.exists(vendor_f):
+                vendor = open(vendor_f).read().strip()
+                
+                # AMD (0x1002)
+                if vendor == "0x1002":
+                    # Obtener nombre de la GPU
+                    try:
+                        name_f = f"/sys/class/drm/{card}/device/product_name"
+                        if os.path.exists(name_f):
+                            gpu_name = open(name_f).read().strip()
+                        else:
+                            gpu_name = "AMD Radeon GPU"
+                    except:
+                        gpu_name = "AMD Radeon GPU"
+                    
+                    # Obtener uso (gpu_busy_percent)
+                    busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
+                    if os.path.exists(busy_f):
+                        try:
+                            gpu_usage = float(open(busy_f).read().strip())
+                        except:
+                            pass
+                    
+                    # Obtener temperatura
+                    hwmon_dir = f"/sys/class/drm/{card}/device/hwmon"
+                    if os.path.isdir(hwmon_dir):
+                        for hw in os.listdir(hwmon_dir):
+                            temp_f = f"/sys/class/drm/{card}/device/hwmon/{hw}/temp1_input"
+                            if os.path.exists(temp_f):
+                                try:
+                                    gpu_temp = int(open(temp_f).read().strip()) / 1000
+                                except:
+                                    pass
+                    
+                    return gpu_name, gpu_usage, gpu_temp
+    except Exception as e:
+        pass
+    
+    # NVIDIA (nvidia-smi)
+    if shutil.which("nvidia-smi"):
+        try:
+            result = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name,utilization.gpu,temperature.gpu",
+                 "--format=csv,noheader,nounits"],
+                timeout=2, stderr=subprocess.DEVNULL
+            ).decode().strip()
+            if result:
+                parts = result.split(',')
+                gpu_name = parts[0].strip()
+                gpu_usage = float(parts[1].strip())
+                gpu_temp = float(parts[2].strip())
+                return gpu_name, gpu_usage, gpu_temp
+        except:
+            pass
+    
+    # AMD (rocm-smi)
+    if shutil.which("rocm-smi"):
+        try:
+            result = subprocess.check_output(
+                ["rocm-smi", "--showuse", "--showtemp"],
+                timeout=2, stderr=subprocess.DEVNULL
+            ).decode()
+            for line in result.split('\n'):
+                if 'GPU' in line and '%' in line:
+                    parts = line.split()
+                    for i, p in enumerate(parts):
+                        if '%' in p:
+                            gpu_usage = float(p.replace('%', ''))
+                        if '°C' in p or 'c' in p.lower():
+                            gpu_temp = float(p.replace('°C', '').replace('c', ''))
+            if gpu_usage > 0 or gpu_temp:
+                gpu_name = "AMD GPU"
+                return gpu_name, gpu_usage, gpu_temp
+        except:
+            pass
+    
+    # Intel
+    try:
+        cards = [p for p in os.listdir("/sys/class/drm") if p.startswith("card") and p[-1].isdigit()]
+        for card in sorted(cards):
+            vendor_f = f"/sys/class/drm/{card}/device/vendor"
+            if os.path.exists(vendor_f):
+                vendor = open(vendor_f).read().strip()
+                if vendor == "0x8086":
+                    gpu_name = "Intel GPU"
+                    busy_f = f"/sys/class/drm/{card}/device/gpu_busy_percent"
+                    if os.path.exists(busy_f):
+                        gpu_usage = float(open(busy_f).read().strip())
+                    return gpu_name, gpu_usage, gpu_temp
+    except:
+        pass
+    
+    # lspci (fallback)
+    if shutil.which("lspci"):
+        try:
+            result = subprocess.check_output(
+                ["lspci", "|", "grep", "-E", "VGA|3D"],
+                shell=True, timeout=2, stderr=subprocess.DEVNULL
+            ).decode().strip()
+            if result:
+                gpu_name = result.split(':')[-1].strip()[:40]
+        except:
+            pass
+    
+    if gpu_name != "No detectada" and gpu_usage == 0:
+        gpu_usage = psutil.cpu_percent() * 0.5
+    
+    return gpu_name, gpu_usage, gpu_temp
+
+# ─── GPU DETECTION WINDOWS ──────────────────────────────────────────────────
 def get_gpu_info_windows():
     gpu_name = "No detectada"
     gpu_usage = 0
@@ -217,28 +337,6 @@ def get_gpu_info_windows():
     
     if gpu_usage == 0 and gpu_name != "No detectada":
         gpu_usage = psutil.cpu_percent() * 0.5
-    
-    return gpu_name, gpu_usage, gpu_temp
-
-def get_gpu_info_linux():
-    gpu_name = "No detectada"
-    gpu_usage = 0
-    gpu_temp = None
-    
-    if shutil.which("nvidia-smi"):
-        try:
-            result = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=name,utilization.gpu,temperature.gpu",
-                 "--format=csv,noheader,nounits"],
-                timeout=2, stderr=subprocess.DEVNULL
-            ).decode().strip()
-            if result:
-                parts = result.split(',')
-                gpu_name = parts[0].strip()
-                gpu_usage = float(parts[1].strip())
-                gpu_temp = float(parts[2].strip())
-        except:
-            pass
     
     return gpu_name, gpu_usage, gpu_temp
 
@@ -579,76 +677,5 @@ def main():
             print(f"\n  {Y}⚠️  Para temperaturas reales:{NC}")
             print(f"     pip install wmi pywin32")
             print(f"     Ejecutar OpenHardwareMonitor")
-    print("-" * 60)
-    print(f"  {W}Presiona 'q' para salir{NC}")
-    print("=" * 60)
-    time.sleep(2)
-    
-    sys.stdout.write("\033[?1049h\033[?25l")
-    sys.stdout.flush()
-    psutil.cpu_percent(percpu=True)
-    time.sleep(0.1)
-    
-    if not IS_WINDOWS:
-        import select as _sel
-        import tty
-        import termios
-        fd = sys.stdin.fileno()
-        old_cfg = termios.tcgetattr(fd)
-        try:
-            tty.setcbreak(fd)
-            first = True
-            needs_resize = False
-            while True:
-                if resize_event.is_set():
-                    needs_resize = True
-                    resize_event.clear()
-                if needs_resize or first:
-                    clear_screen()
-                    first = False
-                    needs_resize = False
-                cols = shutil.get_terminal_size().columns
-                render(system_info, cols, first_render=(first or needs_resize))
-                ready, _, _ = _sel.select([sys.stdin], [], [], INTERVALO)
-                if ready:
-                    key = sys.stdin.read(1).lower()
-                    if key == 'q':
-                        break
-                    elif key == '\x12':
-                        needs_resize = True
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_cfg)
     else:
-        try:
-            import msvcrt
-            first = True
-            last_cols = 0
-            last_lines = 0
-            
-            while True:
-                cols = shutil.get_terminal_size().columns
-                lines = shutil.get_terminal_size().lines
-                
-                if cols != last_cols or lines != last_lines or first:
-                    clear_screen()
-                    first = True
-                    last_cols = cols
-                    last_lines = lines
-                
-                render(system_info, cols, first_render=first)
-                first = False
-                
-                start_time = time.time()
-                while time.time() - start_time < INTERVALO:
-                    if msvcrt.kbhit():
-                        key = msvcrt.getch().decode('ascii', errors='ignore').lower()
-                        if key == 'q':
-                            salir()
-                    time.sleep(0.05)
-        except:
-            pass
-    
-    salir()
-
-if __name__ == "__main__":
-    main()
+        # Detectar GPU en Linux
