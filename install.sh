@@ -83,7 +83,18 @@ pip install psutil
 
 echo -e "${GREEN}✓ psutil instalado correctamente${NC}"
 
-# ===== 5. CREAR CONFIGURACIÓN =====
+# ===== 5. PREGUNTAR POR SOPORTE GPU (NUEVO) =====
+echo -e "\n${YELLOW}▶ ¿Instalar soporte para GPU? (s/n)${NC}"
+read -r instalar_gpu
+if [[ $instalar_gpu == "s" || $instalar_gpu == "S" ]]; then
+    echo -e "${YELLOW}Instalando GPUtil...${NC}"
+    pip install gputil
+    echo -e "${YELLOW}Instalando pyamdgpuinfo para AMD...${NC}"
+    pip install pyamdgpuinfo
+    echo -e "${GREEN}✓ Soporte GPU instalado${NC}"
+fi
+
+# ===== 6. CREAR CONFIGURACIÓN =====
 echo -e "\n${YELLOW}▶ Configurando archivos...${NC}"
 CONFIG_DIR="$HOME/.config/sysmonitorpro"
 mkdir -p "$CONFIG_DIR"
@@ -104,7 +115,7 @@ EOF
     echo -e "${GREEN}✓ Configuración creada${NC}"
 fi
 
-# ===== 6. CREAR LANZADOR =====
+# ===== 7. CREAR LANZADOR =====
 cat > sysmonitor << 'EOF'
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -115,7 +126,29 @@ EOF
 chmod +x sysmonitor
 echo -e "${GREEN}✓ Lanzador creado: ./sysmonitor${NC}"
 
-# ===== 7. PRUEBA =====
+# ===== 8. PREGUNTAR POR COMANDO GLOBAL (NUEVO) =====
+echo -e "\n${YELLOW}▶ ¿Instalar comando global 'sysmonitor'? (s/n)${NC}"
+read -r instalar_global
+if [[ $instalar_global == "s" || $instalar_global == "S" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SCRIPT_PATH="$SCRIPT_DIR/sysmonitorpro.py"
+    
+    if [ ! -f "$SCRIPT_PATH" ]; then
+        echo -e "${RED}✗ Error: No se encuentra sysmonitorpro.py${NC}"
+    else
+        sudo tee /usr/local/bin/sysmonitor > /dev/null << EOF
+#!/bin/bash
+cd "$SCRIPT_DIR"
+source venv/bin/activate
+python3 "$SCRIPT_PATH" "\$@"
+EOF
+        sudo chmod +x /usr/local/bin/sysmonitor
+        echo -e "${GREEN}✓ Comando 'sysmonitor' instalado en /usr/local/bin/${NC}"
+        echo -e "${GREEN}✓ Ahora puedes ejecutar 'sysmonitor' desde cualquier lugar${NC}"
+    fi
+fi
+
+# ===== 9. PRUEBA =====
 echo -e "\n${YELLOW}▶ Probando instalación...${NC}"
 if source venv/bin/activate && python3 -c "import psutil" 2>/dev/null; then
     echo -e "${GREEN}✓ Todo funciona correctamente${NC}"
@@ -123,10 +156,15 @@ else
     echo -e "${RED}✗ Error en la prueba${NC}"
 fi
 
-# ===== 8. FINAL =====
+# ===== 10. FINAL =====
 echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✓ Instalación completada!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "\n${YELLOW}Para ejecutar:${NC}"
-echo -e "  ./sysmonitor"
+echo -e "  ./sysmonitor                # Desde la carpeta del proyecto"
+if [[ $instalar_global == "s" || $instalar_global == "S" ]]; then
+    echo -e "  sysmonitor                  # Desde cualquier lugar"
+fi
+echo -e "\n${YELLOW}Para ver opciones:${NC}"
+echo -e "  sysmonitor --help"
 echo -e "\n${GREEN}¡Disfruta de SysMonitorPro! 🚀${NC}"
