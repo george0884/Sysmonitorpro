@@ -4,11 +4,12 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
     - uses: actions/checkout@v4
@@ -20,50 +21,44 @@ jobs:
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install psutil pyinstaller
     
-    - name: Build executable
+    - name: Create executable
       run: |
-        pyinstaller --onefile --name sysmonitor --hidden-import=psutil sysmonitorpro.py
+        pyinstaller --onefile --name sysmonitor sysmonitorpro.py
+        chmod +x dist/sysmonitor
     
     - name: Create AppDir
       run: |
         mkdir -p AppDir/usr/bin
         cp dist/sysmonitor AppDir/usr/bin/
-        chmod +x AppDir/usr/bin/sysmonitor
     
     - name: Create AppRun
       run: |
         echo '#!/bin/bash' > AppDir/AppRun
-        echo 'HERE="$(dirname "$(readlink -f "$0")")"' >> AppDir/AppRun
-        echo 'exec "$HERE/usr/bin/sysmonitor" "$@"' >> AppDir/AppRun
+        echo 'HERE="\$(dirname "\$(readlink -f "\$0")")"' >> AppDir/AppRun
+        echo 'exec "\$HERE/usr/bin/sysmonitor" "\$@"' >> AppDir/AppRun
         chmod +x AppDir/AppRun
     
     - name: Create desktop file
       run: |
         echo '[Desktop Entry]' > AppDir/sysmonitorpro.desktop
         echo 'Name=SysMonitorPro' >> AppDir/sysmonitorpro.desktop
-        echo 'Comment=Monitor de sistema avanzado' >> AppDir/sysmonitorpro.desktop
         echo 'Exec=sysmonitor' >> AppDir/sysmonitorpro.desktop
-        echo 'Icon=sysmonitorpro' >> AppDir/sysmonitorpro.desktop
         echo 'Terminal=true' >> AppDir/sysmonitorpro.desktop
         echo 'Type=Application' >> AppDir/sysmonitorpro.desktop
-        echo 'Categories=System;Monitor;' >> AppDir/sysmonitorpro.desktop
+        echo 'Categories=System;' >> AppDir/sysmonitorpro.desktop
     
     - name: Download appimagetool
       run: |
-        curl -L -o appimagetool.AppImage "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+        curl -L -o appimagetool.AppImage https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x appimagetool.AppImage
     
     - name: Build AppImage
       run: |
         ARCH=x86_64 ./appimagetool.AppImage AppDir
     
-    - name: Upload to Releases
-      uses: softprops/action-gh-release@v1
+    - name: Upload to release
+      uses: softprops/action-gh-release@v2
       with:
-        files: |
-          SysMonitorPro-*.AppImage
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        files: SysMonitorPro-*.AppImage
