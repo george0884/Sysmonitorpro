@@ -3,8 +3,8 @@ name: Build AppImage
 on:
   push:
     tags:
-      - 'v*'  # Se activa cuando creas un tag como v1.0.0
-  workflow_dispatch:  # Permite ejecutar manualmente
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -24,7 +24,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install psutil pyinstaller
     
-    - name: Build executable with PyInstaller
+    - name: Build with PyInstaller
       run: |
         pyinstaller --onefile --name sysmonitor --hidden-import=psutil sysmonitorpro.py
     
@@ -43,12 +43,12 @@ jobs:
         EOF
         chmod +x AppDir/AppRun
     
-    - name: Create .desktop file
+    - name: Create .desktop
       run: |
         cat > AppDir/sysmonitorpro.desktop << 'EOF'
         [Desktop Entry]
         Name=SysMonitorPro
-        Comment=Monitor de sistema avanzado para Linux
+        Comment=Monitor de sistema avanzado
         Exec=sysmonitor
         Icon=sysmonitorpro
         Terminal=true
