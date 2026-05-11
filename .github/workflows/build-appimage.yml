@@ -11,8 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -24,11 +23,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install psutil pyinstaller
     
-    - name: Build with PyInstaller
+    - name: Build executable
       run: |
         pyinstaller --onefile --name sysmonitor --hidden-import=psutil sysmonitorpro.py
     
-    - name: Create AppDir structure
+    - name: Create AppDir
       run: |
         mkdir -p AppDir/usr/bin
         cp dist/sysmonitor AppDir/usr/bin/
@@ -36,40 +35,35 @@ jobs:
     
     - name: Create AppRun
       run: |
-        cat > AppDir/AppRun << 'EOF'
-        #!/bin/bash
-        HERE="$(dirname "$(readlink -f "$0")")"
-        exec "$HERE/usr/bin/sysmonitor" "$@"
-        EOF
+        echo '#!/bin/bash' > AppDir/AppRun
+        echo 'HERE="$(dirname "$(readlink -f "$0")")"' >> AppDir/AppRun
+        echo 'exec "$HERE/usr/bin/sysmonitor" "$@"' >> AppDir/AppRun
         chmod +x AppDir/AppRun
     
-    - name: Create .desktop
+    - name: Create desktop file
       run: |
-        cat > AppDir/sysmonitorpro.desktop << 'EOF'
-        [Desktop Entry]
-        Name=SysMonitorPro
-        Comment=Monitor de sistema avanzado
-        Exec=sysmonitor
-        Icon=sysmonitorpro
-        Terminal=true
-        Type=Application
-        Categories=System;Monitor;
-        EOF
+        echo '[Desktop Entry]' > AppDir/sysmonitorpro.desktop
+        echo 'Name=SysMonitorPro' >> AppDir/sysmonitorpro.desktop
+        echo 'Comment=Monitor de sistema avanzado' >> AppDir/sysmonitorpro.desktop
+        echo 'Exec=sysmonitor' >> AppDir/sysmonitorpro.desktop
+        echo 'Icon=sysmonitorpro' >> AppDir/sysmonitorpro.desktop
+        echo 'Terminal=true' >> AppDir/sysmonitorpro.desktop
+        echo 'Type=Application' >> AppDir/sysmonitorpro.desktop
+        echo 'Categories=System;Monitor;' >> AppDir/sysmonitorpro.desktop
     
     - name: Download appimagetool
       run: |
-        wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-        chmod +x appimagetool-x86_64.AppImage
+        curl -L -o appimagetool.AppImage "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+        chmod +x appimagetool.AppImage
     
     - name: Build AppImage
       run: |
-        ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir
+        ARCH=x86_64 ./appimagetool.AppImage AppDir
     
     - name: Upload to Releases
       uses: softprops/action-gh-release@v1
       with:
         files: |
           SysMonitorPro-*.AppImage
-          dist/sysmonitor
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
