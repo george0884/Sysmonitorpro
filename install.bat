@@ -1,104 +1,119 @@
 @echo off
-title SysMonitorPro - Instalador Windows
+title SysMonitorPro - Instalador Interactivo (Windows)
 color 0A
 
-echo ===============================================
-echo    SysMonitorPro - Instalador para Windows
-echo ===============================================
+echo =================================================
+echo    SysMonitorPro - Instalador Interactivo
+echo =================================================
 echo.
 
-:: Verificar Python
-echo [1/5] Verificando Python...
+:: === DETECTAR CARPETA DEL SCRIPT ===
+set SCRIPT_DIR=%~dp0
+cd /d "%SCRIPT_DIR%"
+
+echo [INFO] Carpeta del proyecto: %SCRIPT_DIR%
+echo.
+
+:: === 1. VERIFICAR PYTHON ===
+echo [1/6] Verificando Python...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Python no instalado
-    echo Descargar desde: https://www.python.org/downloads/
-    echo IMPORTANTE: Marcar "Add Python to PATH"
+    echo [ERROR] Python no instalado.
+    echo        Descargar desde: https://www.python.org/downloads/
+    echo        IMPORTANTE: Marcar "Add Python to PATH"
     pause
     exit /b 1
 )
-echo OK - Python encontrado
+echo [OK] Python encontrado
 python --version
 echo.
 
-:: Verificar pip
-echo [2/5] Verificando pip...
+:: === 2. VERIFICAR PIP ===
+echo [2/6] Verificando pip...
 pip --version >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: pip no encontrado
+    echo [ERROR] pip no encontrado
     pause
     exit /b 1
 )
-echo OK - pip encontrado
+echo [OK] pip disponible
 echo.
 
-:: Instalar dependencias
-echo [3/5] Instalando dependencias...
+:: === 3. INSTALAR PSUTIL ===
+echo [3/6] Instalando psutil...
 pip install psutil
-echo OK - psutil instalado
+if errorlevel 1 (
+    echo [ERROR] No se pudo instalar psutil
+    pause
+    exit /b 1
+)
+echo [OK] psutil instalado
 echo.
 
-:: Preguntar por soporte de temperaturas
-echo [4/5] Instalar soporte para temperaturas? (Recomendado)
-echo Esto permite ver temperaturas de CPU/GPU
-set /p instalar_temp="Instalar wmi y pywin32? (S/N): "
-if /i "%instalar_temp%"=="S" (
-    pip install wmi pywin32 GPUtil
-    echo.
-    echo IMPORTANTE: Para ver temperaturas necesitas:
-    echo 1. Descargar OpenHardwareMonitor
-    echo 2. Ejecutarlo (debe quedar abierto)
-    echo 3. Link: https://openhardwaremonitor.org/
-    echo.
+:: === 4. INSTALAR GPU OPCIONAL ===
+set /p instalar_gpu="[4/6] Instalar soporte para GPU? (S/N): "
+if /i "%instalar_gpu%"=="S" (
+    echo Instalando GPUtil...
+    pip install gputil
+    echo Instalando wmi y pywin32...
+    pip install wmi pywin32
+    echo [OK] Soporte GPU instalado
 ) else (
-    echo OK - Instalacion basica completada
-    echo.
-)
-
-:: Crear directorio de configuracion
-echo [5/5] Configurando archivos...
-if not exist "%USERPROFILE%\.config\sysmonitorpro" mkdir "%USERPROFILE%\.config\sysmonitorpro"
-
-:: Crear configuracion por defecto
-if not exist "%USERPROFILE%\.config\sysmonitorpro\config.json" (
-    echo {> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "intervalo": 1.0,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "mostrar_gpu": true,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "mostrar_discos": true,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "mostrar_red": true,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "mostrar_top": true,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "grafico_tamano": 40,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "historial_segundos": 60,>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo     "interfaz_red": "auto">> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo }>> "%USERPROFILE%\.config\sysmonitorpro\config.json"
-    echo OK - Configuracion creada
-) else (
-    echo OK - Configuracion ya existe
+    echo [INFO] Soporte GPU omitido
 )
 echo.
 
-:: Crear acceso directo en escritorio
-set SCRIPT_DIR=%~dp0
-set DESKTOP=%USERPROFILE%\Desktop
-if not exist "%DESKTOP%\SysMonitorPro.bat" (
-    echo @echo off > "%DESKTOP%\SysMonitorPro.bat"
-    echo cd /d "%SCRIPT_DIR%" >> "%DESKTOP%\SysMonitorPro.bat"
-    echo python sysmonitorpro.py >> "%DESKTOP%\SysMonitorPro.bat"
-    echo OK - Acceso directo creado en Escritorio
+:: === 5. CREAR CONFIGURACION ===
+echo [5/6] Configurando archivos...
+set CONFIG_DIR=%USERPROFILE%\.config\sysmonitorpro
+if not exist "%CONFIG_DIR%" mkdir "%CONFIG_DIR%"
+if not exist "%CONFIG_DIR%\config.json" (
+    echo {> "%CONFIG_DIR%\config.json"
+    echo     "intervalo": 1.0,>> "%CONFIG_DIR%\config.json"
+    echo     "mostrar_gpu": true,>> "%CONFIG_DIR%\config.json"
+    echo     "mostrar_discos": true,>> "%CONFIG_DIR%\config.json"
+    echo     "mostrar_red": true,>> "%CONFIG_DIR%\config.json"
+    echo     "mostrar_top": true,>> "%CONFIG_DIR%\config.json"
+    echo     "grafico_tamano": 40,>> "%CONFIG_DIR%\config.json"
+    echo     "historial_segundos": 60,>> "%CONFIG_DIR%\config.json"
+    echo     "interfaz_red": "auto">> "%CONFIG_DIR%\config.json"
+    echo }>> "%CONFIG_DIR%\config.json"
+    echo [OK] Configuracion creada en %CONFIG_DIR%\config.json
 ) else (
-    echo OK - Acceso directo ya existe
+    echo [OK] Configuracion ya existe
 )
 echo.
 
-:: Finalizar
-echo ===============================================
+:: === 6. CREAR LANZADOR .BAT ===
+echo [6/6] Creando lanzador...
+if not exist "%SCRIPT_DIR%sysmonitor.bat" (
+    echo @echo off > "%SCRIPT_DIR%sysmonitor.bat"
+    echo cd /d "%SCRIPT_DIR%" >> "%SCRIPT_DIR%sysmonitor.bat"
+    echo python sysmonitorpro.py %%* >> "%SCRIPT_DIR%sysmonitor.bat"
+    echo [OK] Lanzador creado: sysmonitor.bat
+) else (
+    echo [OK] Lanzador ya existe
+)
+echo.
+
+:: === PRUEBA RAPIDA ===
+echo Probando instalacion...
+python -c "import psutil" >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] Todo funciona correctamente
+) else (
+    echo [ERROR] Error en la prueba
+)
+
+:: === FINAL ===
+echo.
+echo =================================================
 echo    Instalacion completada con exito!
-echo ===============================================
+echo =================================================
 echo.
 echo Para ejecutar:
-echo   1. Abrir PowerShell o CMD en esta carpeta
-echo   2. Escribir: python sysmonitorpro.py
-echo   3. O hacer doble click en SysMonitorPro.bat del Escritorio
+echo   python sysmonitorpro.py
+echo   O usar: sysmonitor.bat
 echo.
 echo Para ver opciones:
 echo   python sysmonitorpro.py --help
