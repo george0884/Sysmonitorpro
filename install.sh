@@ -156,7 +156,40 @@ else
     echo -e "${RED}✗ Error en la prueba${NC}"
 fi
 
-# ===== 10. FINAL =====
+# ===== 10. LIMPIEZA FINAL (AUTOREMOVE) =====
+echo -e "\n${YELLOW}▶ Limpiando archivos temporales y no esenciales...${NC}"
+
+# Archivos que definitivamente se pueden eliminar
+echo -e "${YELLOW}Eliminando archivos de documentación e imágenes...${NC}"
+rm -f *.png *.jpg *.jpeg *.gif *.bmp 2>/dev/null || true
+rm -f powershell.jpg Linux.png 1.png 2.png 2>&1 >/dev/null
+
+# Archivos de configuración de ejemplo (ya se copió la configuración real)
+echo -e "${YELLOW}Eliminando ejemplos de configuración...${NC}"
+rm -f config/example.json 2>/dev/null || true
+
+# Archivos de dependencias (el entorno virtual ya tiene lo necesario)
+echo -e "${YELLOW}Eliminando archivos de requisitos...${NC}"
+rm -f requeriments-*.txt requirements-*.txt 2>/dev/null || true
+
+# Scripts auxiliares de Windows (no necesarios en Linux)
+if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "cygwin" && "$OSTYPE" != "win32" ]]; then
+    echo -e "${YELLOW}Eliminando scripts específicos de Windows...${NC}"
+    rm -f *.bat *.ps1 2>/dev/null || true
+fi
+
+# Archivos de construcción obsoletos
+echo -e "${YELLOW}Eliminando archivos de construcción...${NC}"
+rm -rf build/ dist/ *.spec 2>/dev/null || true
+rm -f *.AppImage 2>/dev/null || true
+rm -f appimagetool-*.AppImage 2>/dev/null || true
+rm -f linuxdeploy-*.AppImage 2>/dev/null || true
+rm -f create-appimage.sh build-appimage.sh simple-build.sh 2>/dev/null || true
+
+echo -e "${GREEN}✓ Limpieza completada${NC}"
+echo -e "\n${GREEN}NOTA: Los archivos esenciales (sysmonitorpro.py, venv/, config/, install.sh, LICENSE, README.md) se han conservado.${NC}"
+
+# ===== 11. FINAL =====
 echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✓ Instalación completada!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
