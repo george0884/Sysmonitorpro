@@ -34,14 +34,6 @@
 
 ### 🐧 Linux (todas las distribuciones)
 
-#### Instalador automático (recomendado)
-
-```bash
-git clone https://github.com/george0884/sysmonitorpro.git && \
-cd sysmonitorpro && \
-chmod +x install.sh && \
-./install.sh
-```
 
 El instalador:
 
@@ -50,12 +42,21 @@ El instalador:
 · ✅ Pregunta por soporte opcional para GPU
 · ✅ Crea configuración en ~/.config/sysmonitorpro/config.json
 · ✅ Pregunta si deseas el comando global sysmonitor
+```
 
-Desinstalador interactivo seguro
+#### Desinstalador interactivo seguro
 
 ```bash
 chmod +x uninstall.sh
 ./uninstall.sh
+```
+#### Instalador automático (recomendado)
+
+```bash
+git clone https://github.com/george0884/sysmonitorpro.git && \
+cd sysmonitorpro && \
+chmod +x install.sh && \
+./install.sh
 ```
 
 Instalación manual por distribución
