@@ -21,12 +21,17 @@
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
 ---
-
 ## 📸 Capturas
 
-![Linux](https://github.com/george0884/Sysmonitorpro/blob/47a87de7c20065e38f3af142189b2c8c9b2ad592/Linux.png)
+<div align="center">
+  
+### 🐧 Linux
+<img src="https://raw.githubusercontent.com/george0884/Sysmonitorpro/47a87de7c20065e38f3af142189b2c8c9b2ad592/Linux.png" alt="Linux" width="800"/>
 
-![Windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
+### 🪟 Windows
+<img src="https://raw.githubusercontent.com/george0884/Sysmonitorpro/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg" alt="Windows" width="800"/>
+
+</div>
 
 ---
 
