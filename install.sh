@@ -34,7 +34,41 @@ else
     echo -e "${GREEN}✓ Python3 encontrado: $(python3 --version)${NC}"
 fi
 
-# === 2. VERIFICAR/INSTALAR PIP ===
+# Obtener versión de Python
+PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+echo -e "${D}  Versión detectada: Python ${PYTHON_VERSION}${NC}"
+
+# === 2. VERIFICAR/INSTALAR VENV (SOLUCIÓN PARA PYTHON 3.14+) ===
+echo -e "\n${YELLOW}▶ Verificando módulo venv...${NC}"
+
+# Probar si venv funciona
+if ! python3 -c "import venv" 2>/dev/null; then
+    echo -e "${YELLOW}⚠ Módulo venv no disponible. Instalando...${NC}"
+    
+    # Intentar instalar la versión específica de Python
+    if ! sudo apt install -y python${PYTHON_VERSION}-venv 2>/dev/null; then
+        echo -e "${YELLOW}  Versión específica no encontrada, intentando python3-venv...${NC}"
+        sudo apt install -y python3-venv
+    fi
+    
+    # Si aún falla, instalar python3-full (para Ubuntu 24.04+)
+    if ! python3 -c "import venv" 2>/dev/null; then
+        echo -e "${YELLOW}  Instalando python3-full...${NC}"
+        sudo apt install -y python3-full
+    fi
+    
+    # Verificar que se instaló correctamente
+    if ! python3 -c "import venv" 2>/dev/null; then
+        echo -e "${RED}✗ Error: No se pudo instalar el módulo venv${NC}"
+        echo -e "${YELLOW}  Solución manual:${NC}"
+        echo "    sudo apt install python${PYTHON_VERSION}-venv"
+        echo "    O ejecuta: sudo apt install python3-venv"
+        exit 1
+    fi
+fi
+echo -e "${GREEN}✓ Módulo venv disponible${NC}"
+
+# === 3. VERIFICAR/INSTALAR PIP ===
 echo -e "\n${YELLOW}▶ Verificando pip...${NC}"
 if ! command -v pip3 &> /dev/null; then
     echo -e "${YELLOW}  Instalando pip...${NC}"
@@ -42,13 +76,27 @@ if ! command -v pip3 &> /dev/null; then
 fi
 echo -e "${GREEN}✓ pip3 disponible${NC}"
 
-# === 3. CREAR ENTORNO VIRTUAL ===
+# === 4. CREAR ENTORNO VIRTUAL ===
 echo -e "\n${YELLOW}▶ Creando entorno virtual...${NC}"
 if [ -d "venv" ]; then
     echo -e "${YELLOW}  Eliminando entorno existente...${NC}"
     rm -rf venv
 fi
-python3 -m venv venv
+
+# Crear entorno virtual con manejo de errores
+if ! python3 -m venv venv 2>/dev/null; then
+    echo -e "${YELLOW}  Error al crear venv. Intentando con virtualenv...${NC}"
+    pip3 install --user virtualenv
+    ~/.local/bin/virtualenv venv
+    
+    if [ ! -f "venv/bin/activate" ]; then
+        echo -e "${RED}✗ Error: No se pudo crear el entorno virtual${NC}"
+        echo -e "${YELLOW}  Solución alternativa: instalar manualmente${NC}"
+        echo "    sudo apt install python3-venv"
+        echo "    sudo apt install python3-full"
+        exit 1
+    fi
+fi
 
 if [ ! -f "venv/bin/activate" ]; then
     echo -e "${RED}✗ Error: No se pudo crear el entorno virtual${NC}"
@@ -56,7 +104,7 @@ if [ ! -f "venv/bin/activate" ]; then
 fi
 echo -e "${GREEN}✓ Entorno virtual creado${NC}"
 
-# === 4. ACTIVAR E INSTALAR PSUTIL ===
+# === 5. ACTIVAR E INSTALAR PSUTIL ===
 echo -e "\n${YELLOW}▶ Instalando dependencias...${NC}"
 source venv/bin/activate
 pip install --upgrade pip
@@ -69,7 +117,7 @@ else
     exit 1
 fi
 
-# === 5. SOPORTE GPU OPCIONAL ===
+# === 6. SOPORTE GPU OPCIONAL ===
 echo -e "\n${YELLOW}▶ ¿Instalar soporte para GPU? (s/n)${NC}"
 read -r instalar_gpu
 if [[ $instalar_gpu == "s" || $instalar_gpu == "S" ]]; then
@@ -80,7 +128,7 @@ if [[ $instalar_gpu == "s" || $instalar_gpu == "S" ]]; then
     echo -e "${GREEN}✓ Soporte GPU instalado${NC}"
 fi
 
-# === 6. CREAR CONFIGURACIÓN ===
+# === 7. CREAR CONFIGURACIÓN ===
 echo -e "\n${YELLOW}▶ Configurando archivos...${NC}"
 CONFIG_DIR="$HOME/.config/sysmonitorpro"
 mkdir -p "$CONFIG_DIR"
@@ -103,7 +151,7 @@ else
     echo -e "${D}✓ Configuración ya existe${NC}"
 fi
 
-# === 7. CREAR LANZADOR LOCAL ===
+# === 8. CREAR LANZADOR LOCAL ===
 echo -e "\n${YELLOW}▶ Creando lanzador local...${NC}"
 cat > sysmonitor << 'EOF'
 #!/bin/bash
@@ -115,7 +163,7 @@ EOF
 chmod +x sysmonitor
 echo -e "${GREEN}✓ Lanzador creado: ./sysmonitor${NC}"
 
-# === 8. COMANDO GLOBAL OPCIONAL ===
+# === 9. COMANDO GLOBAL OPCIONAL ===
 echo -e "\n${YELLOW}▶ ¿Instalar comando global 'sysmonitor'? (s/n)${NC}"
 read -r instalar_global
 if [[ $instalar_global == "s" || $instalar_global == "S" ]]; then
@@ -135,7 +183,7 @@ EOF
     fi
 fi
 
-# === 9. CREAR ICONO ===
+# === 10. CREAR ICONO ===
 echo -e "\n${YELLOW}▶ Creando icono...${NC}"
 if [ ! -f "$SCRIPT_DIR/icon.png" ]; then
     # Crear icono SVG y convertirlo a PNG
@@ -152,23 +200,25 @@ EOF
         convert /tmp/icon.svg -resize 256x256 "$SCRIPT_DIR/icon.png"
         echo -e "${GREEN}✓ Icono PNG creado${NC}"
     else
-        # Si no hay ImageMagick, crear un PNG básico con texto
         echo -e "${YELLOW}  ImageMagick no instalado. Creando icono básico...${NC}"
-        cat > "$SCRIPT_DIR/icon.png" << 'EOF'
-iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
-EOF
-        echo -e "${YELLOW}✓ Icono básico creado${NC}"
+        echo -e "${YELLOW}  Para crear un mejor icono, instala: sudo apt install imagemagick${NC}"
+        # Crear un PNG simple de 1x1 píxel (placehold
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > "$SCRIPT_DIR/icon.png"
+        echo -e "${GREEN}✓ Icono básico creado${NC}"
     fi
     rm -f /tmp/icon.svg
 else
     echo -e "${D}✓ Icono ya existe${NC}"
 fi
 
-# === 10. CREAR ACCESO DIRECTO EN EL ESCRITORIO ===
+# === 11. CREAR ACCESO DIRECTO EN EL ESCRITORIO ===
 echo -e "\n${YELLOW}▶ ¿Crear acceso directo en el escritorio? (s/n)${NC}"
 read -r crear_acceso
 if [[ $crear_acceso == "s" || $crear_acceso == "S" ]]; then
     DESKTOP_FILE="$HOME/Desktop/sysmonitorpro.desktop"
+    
+    # Asegurar que existe la carpeta Desktop
+    mkdir -p "$HOME/Desktop"
     
     cat > "$DESKTOP_FILE" << EOF
 [Desktop Entry]
@@ -186,22 +236,22 @@ EOF
     echo -e "${GREEN}✓ Acceso directo creado en el escritorio${NC}"
     
     # También crear en el menú de aplicaciones
+    mkdir -p "$HOME/.local/share/applications"
     MENU_FILE="$HOME/.local/share/applications/sysmonitorpro.desktop"
     cp "$DESKTOP_FILE" "$MENU_FILE"
     echo -e "${GREEN}✓ Acceso directo agregado al menú de aplicaciones${NC}"
 fi
 
-# === 11. LIMPIEZA DE ARCHIVOS DE WINDOWS ===
+# === 12. LIMPIEZA DE ARCHIVOS DE WINDOWS ===
 echo -e "\n${YELLOW}▶ Limpiando archivos específicos de Windows...${NC}"
 rm -f *.bat 2>/dev/null || true
 rm -f *.ps1 2>/dev/null || true
 rm -f requirements-windows.txt 2>/dev/null || true
 rm -f powershell.jpg 2>/dev/null || true
 rm -f install-python-windows.bat 2>/dev/null || true
-rm -f *.png 2>/dev/null || true
 echo -e "${GREEN}✓ Archivos de Windows eliminados${NC}"
 
-# === 12. PRUEBA RÁPIDA ===
+# === 13. PRUEBA RÁPIDA ===
 echo -e "\n${YELLOW}▶ Probando instalación...${NC}"
 if source venv/bin/activate && python3 -c "import psutil" 2>/dev/null; then
     echo -e "${GREEN}✓ Todo funciona correctamente${NC}"
@@ -209,7 +259,7 @@ else
     echo -e "${RED}✗ Error en la prueba${NC}"
 fi
 
-# === 13. FINAL ===
+# === 14. FINAL ===
 echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✓ Instalación completada!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
