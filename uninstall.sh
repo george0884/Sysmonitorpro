@@ -10,6 +10,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 BOLD='\033[1m'
+D='\033[2m'
 
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${RED}   SysMonitorPro - Desinstalador Interactivo${NC}"
@@ -39,20 +40,7 @@ else
     echo -e "${D}➜ No se encontró el comando global 'sysmonitor'. Saltando...${NC}"
 fi
 
-# === 2. ELIMINAR ENTORNO VIRTUAL ===
-if [ -d "venv" ]; then
-    echo ""
-    echo -e "${YELLOW}🔍 Se detectó el entorno virtual 'venv' (${BOLD}$(du -sh venv | cut -f1)${NC}${YELLOW})${NC}"
-    read -p "¿Deseas eliminar este entorno virtual? (s/N): " -r eliminar_venv
-    if [[ $eliminar_venv =~ ^[Ss]$ ]]; then
-        rm -rf venv
-        echo -e "${GREEN}✓ Entorno virtual eliminado.${NC}"
-    else
-        echo -e "${D}➜ Entorno virtual conservado.${NC}"
-    fi
-fi
-
-# === 3. ELIMINAR LANZADOR LOCAL (./sysmonitor) ===
+# === 2. ELIMINAR LANZADOR LOCAL (./sysmonitor) ===
 if [ -f "sysmonitor" ]; then
     echo ""
     echo -e "${YELLOW}🔍 Se detectó el lanzador local './sysmonitor'${NC}"
@@ -62,6 +50,19 @@ if [ -f "sysmonitor" ]; then
         echo -e "${GREEN}✓ Lanzador local eliminado.${NC}"
     else
         echo -e "${D}➜ Lanzador local conservado.${NC}"
+    fi
+fi
+
+# === 3. ELIMINAR ENTORNO VIRTUAL ===
+if [ -d "venv" ]; then
+    echo ""
+    echo -e "${YELLOW}🔍 Se detectó el entorno virtual 'venv' (${BOLD}$(du -sh venv | cut -f1)${NC}${YELLOW})${NC}"
+    read -p "¿Deseas eliminar este entorno virtual? (s/N): " -r eliminar_venv
+    if [[ $eliminar_venv =~ ^[Ss]$ ]]; then
+        rm -rf venv
+        echo -e "${GREEN}✓ Entorno virtual eliminado.${NC}"
+    else
+        echo -e "${D}➜ Entorno virtual conservado.${NC}"
     fi
 fi
 
@@ -109,45 +110,22 @@ else
     echo -e "${D}➜ No se encontraron paquetes de Python instalados por este proyecto.${NC}"
 fi
 
-# === 6. ELIMINAR DEPENDENCIAS DE WINDOWS (wmi, pywin32) - SÓLO EN WINDOWS ===
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-    PAQUETES_WINDOWS=("wmi" "pywin32")
-    PAQUETES_WIN_A_ELIMINAR=()
-    for paquete in "${PAQUETES_WINDOWS[@]}"; do
-        if pip3 show "$paquete" &> /dev/null; then
-            PAQUETES_WIN_A_ELIMINAR+=("$paquete")
-        fi
-    done
-    if [ ${#PAQUETES_WIN_A_ELIMINAR[@]} -gt 0 ]; then
-        echo ""
-        echo -e "${YELLOW}🔍 Se detectaron paquetes específicos de Windows: ${PAQUETES_WIN_A_ELIMINAR[*]}${NC}"
-        read -p "¿Deseas desinstalar estos paquetes? (s/N): " -r eliminar_win
-        if [[ $eliminar_win =~ ^[Ss]$ ]]; then
-            for paquete in "${PAQUETES_WIN_A_ELIMINAR[@]}"; do
-                pip3 uninstall -y "$paquete"
-            done
-            echo -e "${GREEN}✓ Paquetes de Windows eliminados.${NC}"
-        else
-            echo -e "${D}➜ Paquetes de Windows conservados.${NC}"
-        fi
-    fi
-fi
-
-# === 7. ELIMINAR RESIDUOS DE COMPILACIÓN (AppImage, build, dist) ===
+# === 6. ELIMINAR RESIDUOS DE COMPILACIÓN (AppImage, build, dist) ===
 echo ""
 echo -e "${YELLOW}🔍 Buscando residuos de compilación...${NC}"
-if [ -d "build" ] || [ -d "dist" ] || [ -f "*.spec" ]; then
+if [ -d "build" ] || [ -d "dist" ] || ls *.spec &> /dev/null; then
     echo -e "${YELLOW}   Se detectaron carpetas: build, dist o archivos .spec${NC}"
     read -p "¿Deseas eliminar estos residuos de compilación? (s/N): " -r eliminar_residuos
     if [[ $eliminar_residuos =~ ^[Ss]$ ]]; then
         rm -rf build dist *.spec 2>/dev/null
+        rm -f *.AppImage 2>/dev/null
         echo -e "${GREEN}✓ Residuos de compilación eliminados.${NC}"
     else
         echo -e "${D}➜ Residuos conservados.${NC}"
     fi
 fi
 
-# === 8. ELIMINAR OPENHARDWAREMONITOR (SÓLO WINDOWS, PREGUNTA EXPLÍCITA) ===
+# === 7. ELIMINAR OPENHARDWAREMONITOR (SOLO WINDOWS, PREGUNTA EXPLÍCITA) ===
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
     if [ -d "C:/Program Files/OpenHardwareMonitor" ] || [ -f "C:/Program Files/OpenHardwareMonitor/OpenHardwareMonitor.exe" ]; then
         echo ""
@@ -156,16 +134,15 @@ if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; t
         read -p "¿Deseas eliminar OpenHardwareMonitor del sistema? (s/N): " -r eliminar_ohm
         if [[ $eliminar_ohm =~ ^[Ss]$ ]]; then
             echo -e "${RED}   Eliminando OpenHardwareMonitor...${NC}"
-            # Intento de desinstalación silenciosa (puede fallar si no se instaló así)
             "C:/Program Files/OpenHardwareMonitor/Uninstall.exe" /S 2>/dev/null || rm -rf "C:/Program Files/OpenHardwareMonitor"
-            echo -e "${GREEN}✓ OpenHardwareMonitor eliminado (puede que queden residuos manuales).${NC}"
+            echo -e "${GREEN}✓ OpenHardwareMonitor eliminado.${NC}"
         else
             echo -e "${D}➜ OpenHardwareMonitor conservado.${NC}"
         fi
     fi
 fi
 
-# === 9. ELIMINAR PYTHON O PIP (SOLO SI EL USUARIO LO PIDE EXPLÍCITAMENTE) ===
+# === 8. ELIMINAR PYTHON O PIP (SOLO SI EL USUARIO LO PIDE EXPLÍCITAMENTE) ===
 echo ""
 echo -e "${RED}${BOLD}════════════════════════════════════════════════════════${NC}"
 echo -e "${RED}${BOLD}⚠️  SECCIÓN PELIGROSA: Modificación del sistema ⚠️${NC}"
@@ -173,7 +150,7 @@ echo -e "${RED}${BOLD}═══════════════════�
 echo -e "${YELLOW}⚠️  ¡ATENCIÓN! Estos componentes son necesarios para otros programas.${NC}"
 echo -e "${YELLOW}⚠️  Si no estás seguro de su uso, elige 'NO'.${NC}"
 
-# --- 9a. Eliminar pip (solo si el usuario lo confirma) ---
+# --- 8a. Eliminar pip (solo si el usuario lo confirma) ---
 if command -v pip3 &> /dev/null; then
     echo ""
     read -p "¿Eliminar pip3 del sistema? (s/N): " -r eliminar_pip_sistema
@@ -186,7 +163,7 @@ if command -v pip3 &> /dev/null; then
     fi
 fi
 
-# --- 9b. Eliminar Python (¡Último recurso! Aviso muy fuerte) ---
+# --- 8b. Eliminar Python (¡Último recurso! Aviso muy fuerte) ---
 if command -v python3 &> /dev/null; then
     echo ""
     echo -e "${RED}${BOLD}════════════════════════════════════════════════════════${NC}"
@@ -205,7 +182,7 @@ if command -v python3 &> /dev/null; then
     fi
 fi
 
-# === 10. ELIMINAR EL PROPIO REPOSITORIO (OPCIONAL) ===
+# === 9. ELIMINAR LA CARPETA DEL PROGRAMA (OPCIONAL - NUEVO) ===
 echo ""
 echo -e "${YELLOW}🔍 ¿Deseas eliminar también la carpeta completa del repositorio?${NC}"
 echo -e "${YELLOW}   (Ubicación actual: ${BOLD}$(pwd)${NC}${YELLOW})${NC}"
@@ -213,7 +190,7 @@ read -p "¿Eliminar TODA esta carpeta? (s/N): " -r eliminar_repo
 if [[ $eliminar_repo =~ ^[Ss]$ ]]; then
     cd ..
     echo -e "${RED}   Eliminando repositorio...${NC}"
-    rm -rf "$(pwd)/Sysmonitorpro"
+    rm -rf "$(pwd)/Sysmonitorpro" 2>/dev/null || rm -rf "$(dirname "$0")" 2>/dev/null
     echo -e "${GREEN}✓ Repositorio eliminado.${NC}"
     echo -e "${YELLOW}⚠️  La terminal se cerrará en 5 segundos...${NC}"
     sleep 5
@@ -222,6 +199,7 @@ else
     echo -e "${D}➜ Repositorio conservado.${NC}"
 fi
 
+# === 10. FINAL ===
 echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✓ Desinstalación completada. Sistema limpio.${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
