@@ -182,15 +182,17 @@ if command -v python3 &> /dev/null; then
     fi
 fi
 
-# === 9. ELIMINAR LA CARPETA DEL PROGRAMA (OPCIONAL - NUEVO) ===
+# === 9. ELIMINAR LA CARPETA DEL PROGRAMA (CORREGIDO) ===
 echo ""
 echo -e "${YELLOW}🔍 ¿Deseas eliminar también la carpeta completa del repositorio?${NC}"
 echo -e "${YELLOW}   (Ubicación actual: ${BOLD}$(pwd)${NC}${YELLOW})${NC}"
 read -p "¿Eliminar TODA esta carpeta? (s/N): " -r eliminar_repo
 if [[ $eliminar_repo =~ ^[Ss]$ ]]; then
-    cd ..
-    echo -e "${RED}   Eliminando repositorio...${NC}"
-    rm -rf "$(pwd)/Sysmonitorpro" 2>/dev/null || rm -rf "$(dirname "$0")" 2>/dev/null
+    # Guardar la ruta de la carpeta a eliminar
+    CARPETA_A_ELIMINAR="$(pwd)"
+    cd /tmp  # Salir de la carpeta antes de eliminarla
+    echo -e "${RED}   Eliminando repositorio en: $CARPETA_A_ELIMINAR${NC}"
+    rm -rf "$CARPETA_A_ELIMINAR"
     echo -e "${GREEN}✓ Repositorio eliminado.${NC}"
     echo -e "${YELLOW}⚠️  La terminal se cerrará en 5 segundos...${NC}"
     sleep 5
