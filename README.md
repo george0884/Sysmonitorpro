@@ -41,12 +41,21 @@ chmod +x sysmonitor
 ### 🐧 Linux (todas las distribuciones)
 
 
-El instalador:
+#El instalador:
 - Verifica/instala Python 3 y pip
 - Instala `psutil` (dependencia principal)
 - Pregunta por soporte opcional para GPU
 - Crea configuración en `~/.config/sysmonitorpro/config.json`
 - Pregunta si deseas el comando global `sysmonitor`
+
+```bash
+# Desinstalador interactivo seguro.
+# 1. Dar permisos de ejecución
+chmod +x uninstall.sh
+
+# 2. Ejecutar
+./uninstall.sh
+```
 
 ### 📦 Por distribución (Linux - manual)
 
