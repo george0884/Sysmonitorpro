@@ -26,6 +26,18 @@
 
 ![windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
 
+# app standalone ejecutable Desde terminal
+```bash
+wget https://github.com/george0884/Sysmonitorpro/releases/download/v1.0.0/sysmonitor
+
+# Dar permisos
+chmod +x sysmonitor
+
+# Ejecutar
+./sysmonitor
+```
+
+
 ### 🐧 Linux (todas las distribuciones)
 
 
