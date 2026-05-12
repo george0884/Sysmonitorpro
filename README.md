@@ -365,6 +365,142 @@ No detecta GPU NVIDIA Instalar drivers NVIDIA y verificar con nvidia-smi
 sysmonitor no se encuentra source ~/.bashrc o export PATH="$PATH:$HOME/.local/bin"
 
 ---
+📋 Resumen de lo último agregado a SysMonitorPro
+
+🆕 Nuevas características implementadas
+
+---
+
+1. 🖼️ Icono personalizado
+
+· Linux: Se crea automáticamente icon.png en la carpeta del proyecto
+· Windows: Se genera icon.ico automáticamente
+· El icono tiene diseño profesional con la letra "S" y "M Pro"
+
+---
+
+2. 🖱️ Acceso directo en el escritorio
+
+Linux:
+
+· Crea ~/Desktop/sysmonitorpro.desktop
+· También agrega al menú de aplicaciones (~/.local/share/applications/)
+· Acceso directo ejecutable con un solo clic
+
+Windows:
+
+· Crea %USERPROFILE%\Desktop\SysMonitorPro.lnk
+· Acceso directo que ejecuta el programa con el icono personalizado
+
+---
+
+3. 🧹 Limpieza automática de archivos innecesarios
+
+En Linux (install.sh) elimina:
+
+· Scripts de Windows (*.bat, *.ps1)
+· Archivos de requisitos de Windows
+· Imágenes de Windows (powershell.jpg, etc.)
+
+En Windows (install.bat) elimina:
+
+· Scripts de Linux (*.sh)
+· Archivos de requisitos de Linux
+· Imágenes de Linux (*.png)
+
+---
+
+4. 🗑️ Desinstaladores completos
+
+uninstall.sh (Linux):
+
+· Elimina comando global /usr/local/bin/sysmonitor
+· Elimina lanzador local ./sysmonitor
+· Elimina entorno virtual venv/
+· Elimina configuración ~/.config/sysmonitorpro
+· Desinstala dependencias psutil, gputil, pyamdgpuinfo
+· Elimina residuos de compilación (build/, dist/, *.spec, *.AppImage)
+· Pregunta antes de eliminar CADA componente
+· NO elimina Python del sistema (por seguridad)
+
+uninstall.bat (Windows):
+
+· Elimina lanzador sysmonitor.bat
+· Elimina entorno virtual venv/
+· Elimina configuración %USERPROFILE%\.config\sysmonitorpro
+· Desinstala dependencias psutil, gputil, wmi, pywin32
+· Elimina residuos de compilación
+· Pregunta antes de eliminar CADA componente
+· NO elimina Python del sistema
+
+---
+
+5. 🎨 Instaladores sincronizados
+
+Función Linux Windows
+Verificar Python ✅ ✅
+Instalar psutil ✅ ✅
+Soporte GPU ✅ ✅
+Crear configuración ✅ ✅
+Crear lanzador local ✅ ✅
+Comando global ✅ (opcional) ❌
+Crear icono ✅ ✅
+Acceso directo escritorio ✅ ✅
+Limpiar archivos del otro SO ✅ ✅
+
+---
+
+6. 📁 Estructura final del proyecto
+
+```
+Sysmonitorpro/
+├── sysmonitorpro.py       # Script principal
+├── install.sh             # Instalador Linux (con icono + acceso directo)
+├── install.bat            # Instalador Windows (con icono + acceso directo)
+├── uninstall.sh           # Desinstalador Linux
+├── uninstall.bat          # Desinstalador Windows
+├── icon.png / icon.ico    # Icono personalizado (generado automáticamente)
+├── sysmonitor             # Lanzador local (Linux)
+├── sysmonitor.bat         # Lanzador local (Windows)
+├── config/
+│   └── default.json       # Configuración por defecto
+├── LICENSE                # GPL-3.0
+└── README.md              # Documentación
+```
+
+---
+
+7. 🔄 Interactividad
+
+Ambos instaladores preguntan al usuario:
+
+· ¿Instalar soporte para GPU?
+· ¿Instalar comando global? (solo Linux)
+· ¿Crear acceso directo en el escritorio?
+
+Ambos desinstaladores preguntan antes de eliminar:
+
+· Comando global
+· Lanzador local
+· Entorno virtual
+· Configuración
+· Dependencias Python
+· Residuos de compilación
+· Carpeta del programa
+
+---
+
+✅ Resumen final
+
+Característica Estado
+Icono personalizado ✅ Implementado
+Acceso directo escritorio ✅ Implementado
+Instaladores sincronizados ✅ Linux/Windows
+Desinstaladores seguros ✅ No rompen el sistema
+Limpieza automática ✅ Archivos del otro SO
+Interactividad completa ✅ Pregunta antes de cada acción
+
+---
 
 📝 Licencia
 
