@@ -1,3 +1,5 @@
+---
+
 ```markdown
 # ⚡ SysMonitorPro
 
@@ -8,7 +10,7 @@
 ## ✨ Características
 
 | Módulo | Detalle |
-|---|---|
+|--------|---------|
 | **CPU** | Uso real por núcleo · Frecuencia GHz · Temperatura con colores |
 | **Temperatura** | Soporte Intel, AMD, NVMe, GPU (Windows via OpenHardwareMonitor) |
 | **RAM / SWAP** | Uso en tiempo real con barras de progreso |
@@ -20,79 +22,61 @@
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
+---
 
-```
-![linux](https://github.com/george0884/Sysmonitorpro/blob/47a87de7c20065e38f3af142189b2c8c9b2ad592/Linux.png)
+## 📸 Capturas
 
-![windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
+![Linux](https://github.com/george0884/Sysmonitorpro/blob/47a87de7c20065e38f3af142189b2c8c9b2ad592/Linux.png)
 
-# app standalone ejecutable Desde terminal
-```bash
-wget https://github.com/george0884/Sysmonitorpro/releases/download/v1.0.0/sysmonitor
+![Windows](https://github.com/george0884/Sysmonitorpro/blob/009aea715ccec4b6ead8999db7f992f8eda04c13/powershell.jpg)
 
-# Dar permisos
-chmod +x sysmonitor
+---
 
-# Ejecutar
-./sysmonitor
-```
-
+## 🚀 Instalación rápida
 
 ### 🐧 Linux (todas las distribuciones)
 
-
-#El instalador:
-- Verifica/instala Python 3 y pip
-- Instala `psutil` (dependencia principal)
-- Pregunta por soporte opcional para GPU
-- Crea configuración en `~/.config/sysmonitorpro/config.json`
-- Pregunta si deseas el comando global `sysmonitor`
+#### Instalador automático (recomendado)
 
 ```bash
-# Desinstalador interactivo seguro.
-# 1. Dar permisos de ejecución
-chmod +x uninstall.sh
-
-# 2. Ejecutar
-./uninstall.sh
-```
-
-### 📦 Por distribución (Linux - manual)
-
-#### 🟠 Debian / Ubuntu / Mint / Pop!_OS
-# Clonar el repositorio
-```bash
-git clone https://github.com/george0884/sysmonitorpro.git
-cd sysmonitorpro
-```
-# Dar permisos al instalador
-```bash
-chmod +x install.sh
-```
-# Ejecutar instalador
-```bash
+git clone https://github.com/george0884/sysmonitorpro.git && \
+cd sysmonitorpro && \
+chmod +x install.sh && \
 ./install.sh
 ```
 
-# Comando encadenado
+El instalador:
+
+· ✅ Verifica/instala Python 3 y pip
+· ✅ Instala psutil (dependencia principal)
+· ✅ Pregunta por soporte opcional para GPU
+· ✅ Crea configuración en ~/.config/sysmonitorpro/config.json
+· ✅ Pregunta si deseas el comando global sysmonitor
+
+Desinstalador interactivo seguro
+
 ```bash
-git clone https://github.com/george0884/sysmonitorpro.git && cd sysmonitorpro && chmod +x install.sh && ./install.sh
+chmod +x uninstall.sh
+./uninstall.sh
 ```
 
-#Manualmente
+Instalación manual por distribución
+
+🟠 Debian / Ubuntu / Mint / Pop!_OS
+
 ```bash
 sudo apt update
 sudo apt install python3 python3-pip -y
 pip3 install psutil
 ```
 
-#### 🔵 Arch Linux / Manjaro / EndeavourOS
+🔵 Arch Linux / Manjaro / EndeavourOS
 
 ```bash
 sudo pacman -S python python-psutil
 ```
 
-#### 🟢 Fedora / RHEL / AlmaLinux / Rocky Linux
+🟢 Fedora / RHEL / AlmaLinux / Rocky Linux
 
 ```bash
 sudo dnf install python3 python3-pip -y
@@ -101,157 +85,125 @@ pip3 install psutil
 
 ---
 
-## 🚀 Ejecución
+🪟 Windows 10 / 11
 
-### 🪟 Windows
-## 📦 Instalación
+Requisitos previos
 
-### 🪟 Windows 10 / 11
-
-#### Requisitos previos
-
-1. **Instalar Python** (3.8 o superior)
-   - Descargar desde [python.org](https://www.python.org/downloads/)
-   - **IMPORTANTE:** Marcar "Add Python to PATH" durante la instalación
-
-2. **Abrir PowerShell como Administrador** y ejecutar:
+1. Instalar Python (3.8 o superior) desde python.org
+      ⚠️ Importante: Marcar "Add Python to PATH" durante la instalación
+2. Abrir PowerShell como Administrador y ejecutar:
 
 ```powershell
 # Verificar Python
 python --version
 
 # Instalar dependencias principales
-#puedes usar el script automaticon mas abajo, incluiido en el repo.
 pip install psutil
 
-# Instalar dependencias para temperaturas (opcional pero recomendado)
+# Dependencias opcionales para temperaturas
 pip install wmi pywin32 GPUtil
 ```
 
-3. **Instalar OpenHardwareMonitor** (necesario para temperaturas)
-   - Descargar desde [openhardwaremonitor.org](https://openhardwaremonitor.org/)
-   - Ejecutar el programa (debe quedar abierto en segundo plano)
-   - Asegurarse de que muestra temperaturas en su interfaz
+1. Instalar OpenHardwareMonitor (necesario para temperaturas)
+      Descargar desde openhardwaremonitor.org
+      Debe quedar ejecutándose en segundo plano.
 
-#### Instalar SysMonitorPro en Windows
+Instalar SysMonitorPro
 
 ```powershell
-# Clonar o descargar el repositorio
 git clone https://github.com/george0884/sysmonitorpro.git
 cd sysmonitorpro
-#instalador automatico dependencias
+
+# Instalador automático de dependencias
 .\install-python-windows.bat
-#install sysmonitor
+
+# Instalador principal
 .\install.bat
 
 # Configurar PowerShell para ejecutar scripts (si es necesario)
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-# Ejecutar el script
-python sysmonitorpro.py
 ```
 
-#### Crear acceso directo (opcional)
+Crear acceso directo (opcional)
 
 ```powershell
-# Crear archivo .bat para ejecutar fácilmente
+# Archivo .bat
 echo python %~dp0sysmonitorpro.py > sysmonitor.bat
 
-# O crear alias en PowerShell
+# Alias en PowerShell
 New-Alias sysmonitor "python C:\ruta\sysmonitorpro.py"
 ```
 
+---
 
-```powershell
-# Desde PowerShell o CMD
-python sysmonitorpro.py
+📦 Ejecutable standalone (recomendado)
 
-# Con opciones
-python sysmonitorpro.py --json
-python sysmonitorpro.py --no-gpu --no-top
-python sysmonitorpro.py -i 2.0
-```
-
-### 🐧 Linux
+No necesitas Python instalado. Descarga y ejecuta:
 
 ```bash
-# Modo directo
-python3 sysmonitorpro.py
-
-# Como comando global (si usaste el instalador)
-sysmonitor
-
-# Con permisos de ejecución
-chmod +x sysmonitorpro.py
-./sysmonitorpro.py
+wget https://github.com/george0884/Sysmonitorpro/releases/download/v1.0.0/sysmonitor
+chmod +x sysmonitor
+./sysmonitor
 ```
 
 ---
 
-## 🎮 Controles
+🎮 Controles
 
-| Tecla | Acción |
-|-------|--------|
-| `q` / `Q` | Salir limpiamente |
-| `Ctrl+R` | Forzar redimensionamiento y recarga de pantalla |
+Tecla Acción
+q / Q Salir limpiamente
+Ctrl+R Forzar redimensionamiento y recarga de pantalla
 
 ---
 
-## ⚙️ Línea de comandos
+⚙️ Línea de comandos
 
-| Opción | Descripción |
-|--------|-------------|
-| `--json` | Salida en formato JSON (para scripts) |
-| `--no-gpu` | Ocultar sección GPU |
-| `--no-disks` | Ocultar sección discos |
-| `--no-network` | Ocultar sección red |
-| `--no-top` | Ocultar top procesos |
-| `-i N` / `--interval N` | Intervalo de actualización en segundos (ej: `-i 2.0`) |
-| `-c ARCHIVO` / `--config ARCHIVO` | Usar archivo de configuración específico |
-| `--hist-size N` | Tamaño del historial en segundos |
-| `--help` | Mostrar ayuda |
+Opción Descripción
+--json Salida en formato JSON (para scripts)
+--no-gpu Ocultar sección GPU
+--no-disks Ocultar sección discos
+--no-network Ocultar sección red
+--no-top Ocultar top procesos
+-i N / --interval N Intervalo de actualización (ej: -i 2.0)
+-c ARCHIVO / --config ARCHIVO Usar configuración específica
+--hist-size N Tamaño del historial (segundos)
+--help Mostrar ayuda
 
-### Ejemplos
+Ejemplos
 
 ```bash
-# Modo JSON para scripts
-sysmonitor --json
-
-# Ocultar GPU y discos
-sysmonitor --no-gpu --no-disks
-
-# Intervalo de 2 segundos
-sysmonitor -i 2.0
-
-# Usar configuración personalizada
-sysmonitor -c ~/mi-config.json
+sysmonitor --json                     # Modo JSON
+sysmonitor --no-gpu --no-disks        # Ocultar GPU y discos
+sysmonitor -i 2.0                     # Actualizar cada 2 segundos
+sysmonitor -c ~/mi-config.json        # Configuración personalizada
 ```
 
 ---
 
-## ⚙️ Configuración personalizada
+⚙️ Configuración personalizada
 
-El script busca configuración en:
-- **Windows:** `%USERPROFILE%\.config\sysmonitorpro\config.json`
-- **Linux:** `~/.config/sysmonitorpro/config.json`
+Ubicación de la configuración:
 
-Si no existe, usa valores por defecto.
+· Windows: %USERPROFILE%\.config\sysmonitorpro\config.json
+· Linux: ~/.config/sysmonitorpro/config.json
 
-### Crear configuración manualmente
+Crear configuración manualmente
 
-#### Windows (PowerShell)
+Windows (PowerShell)
+
 ```powershell
 mkdir $env:USERPROFILE\.config\sysmonitorpro
 notepad $env:USERPROFILE\.config\sysmonitorpro\config.json
 ```
 
-#### Linux (bash)
+Linux (bash)
+
 ```bash
 mkdir -p ~/.config/sysmonitorpro
 nano ~/.config/sysmonitorpro/config.json
 ```
 
-### Opciones disponibles
+Opciones disponibles
 
 ```json
 {
@@ -266,38 +218,37 @@ nano ~/.config/sysmonitorpro/config.json
 }
 ```
 
-| Opción | Valores | Defecto | Descripción |
-|--------|---------|---------|-------------|
-| `intervalo` | 0.5 - 5.0 | 1.0 | Segundos entre actualizaciones |
-| `mostrar_gpu` | true / false | true | Mostrar u ocultar sección GPU |
-| `mostrar_discos` | true / false | true | Mostrar u ocultar discos |
-| `mostrar_red` | true / false | true | Mostrar u ocultar red |
-| `mostrar_top` | true / false | true | Mostrar u ocultar top procesos |
-| `grafico_tamano` | 20 - 100 | 40 | Ancho del gráfico histórico |
-| `historial_segundos` | 30 - 300 | 60 | Duración del historial |
-| `interfaz_red` | "auto" / Nombre | "auto" | Interfaz específica |
+Opción Valores Defecto Descripción
+intervalo 0.5 - 5.0 1.0 Segundos entre actualizaciones
+mostrar_gpu true/false true Mostrar/ocultar GPU
+mostrar_discos true/false true Mostrar/ocultar discos
+mostrar_red true/false true Mostrar/ocultar red
+mostrar_top true/false true Mostrar/ocultar top procesos
+grafico_tamano 20 - 100 40 Ancho del gráfico histórico
+historial_segundos 30 - 300 60 Duración del historial
+interfaz_red "auto" / nombre "auto" Interfaz específica
 
 ---
 
-## 🌡️ Sensores de temperatura
+🌡️ Sensores de temperatura
 
-### Windows
-- **Requisito:** OpenHardwareMonitor ejecutándose en segundo plano
-- **Descargar:** [openhardwaremonitor.org](https://openhardwaremonitor.org/)
-- Las temperaturas de CPU, GPU y discos aparecerán automáticamente
+Windows
 
-### Linux
-SysMonitorPro detecta automáticamente:
+· Requisito: OpenHardwareMonitor ejecutándose
+· Descarga: openhardwaremonitor.org
 
-| Sensor | Hardware |
-|--------|----------|
-| `k10temp` | AMD Ryzen / Threadripper |
-| `coretemp` | Intel Core |
-| `acpitz` | ACPI genérico |
-| `cpu_thermal` | ARM / Raspberry Pi |
-| `nvme` | Discos NVMe |
+Linux
 
-### Colores por temperatura
+Detecta automáticamente:
+
+Sensor Hardware
+k10temp AMD Ryzen / Threadripper
+coretemp Intel Core
+acpitz ACPI genérico
+cpu_thermal ARM / Raspberry Pi
+nvme Discos NVMe
+
+Colores por temperatura
 
 ```
 🔵 Azul     < 60°C   →  Normal
@@ -307,25 +258,27 @@ SysMonitorPro detecta automáticamente:
 
 ---
 
-## 🔌 Integración con otros programas
+🔌 Integración con otros programas
 
-### Windows (PowerShell script)
+Windows (PowerShell)
+
 ```powershell
-# Obtener métricas cada 5 segundos
 while ($true) {
     python sysmonitorpro.py --json | Out-File -Append metrics.json
     Start-Sleep -Seconds 5
 }
 ```
 
-### i3blocks (Linux)
+i3blocks (Linux)
+
 ```ini
 [sysmonitor]
 command=sysmonitor --json | jq -r '"CPU: \(.cpu.percent)% RAM: \(.memory.ram.percent)%"'
 interval=2
 ```
 
-### Polybar (Linux)
+Polybar (Linux)
+
 ```ini
 [module/sysmonitor]
 type = custom/script
@@ -333,162 +286,109 @@ exec = sysmonitor --json | jq -r '"CPU: \(.cpu.percent)%"'
 interval = 2
 ```
 
-### Cron (Linux - registro cada minuto)
+Cron (Linux)
+
 ```bash
 */1 * * * * /usr/local/bin/sysmonitor --json >> /var/log/sysmonitor.log
 ```
 
-### tmux (Linux - barra de estado)
+tmux
+
 ```bash
-# En ~/.tmux.conf
 set -g status-right "#(sysmonitor --json | jq -r '\"CPU: \\(.cpu.percent)%\"')"
 ```
 
 ---
 
-## 📦 Compilado a binario (opcional)
+📦 Compilado a binario (opcional)
 
-### Windows (exe)
+Windows (.exe)
+
 ```powershell
-# Instalar PyInstaller
 pip install pyinstaller
-
-# Compilar a .exe
 pyinstaller --onefile --name sysmonitor.exe sysmonitorpro.py
-
 # El ejecutable estará en ./dist/sysmonitor.exe
 ```
 
-### Linux (binario)
+Linux (binario)
+
 ```bash
-pip3 install pyinstaller
+pip install pyinstaller
 pyinstaller --onefile --name sysmonitor sysmonitorpro.py
 ./dist/sysmonitor
 sudo cp dist/sysmonitor /usr/local/bin/
 ```
 
-> **Nota:** El binario pesa ~8-12 MB pero funciona sin necesidad de Python instalado.
+Nota: El binario pesa ~8-12 MB y no requiere Python.
 
 ---
 
-## 🗂️ Estructura del proyecto
+🗂️ Estructura del proyecto
 
 ```
 sysmonitorpro/
 ├── sysmonitorpro.py       # Script principal
-├── install.sh             # Instalador automático (Linux)
+├── install.sh             # Instalador Linux
+├── install.bat            # Instalador Windows
+├── uninstall.sh           # Desinstalador Linux
 ├── setup.py               # Instalación con pip
-├── .gitignore             # Archivos ignorados
+├── .gitignore
 ├── LICENSE                # GPL-3.0
-├── README.md              # Este archivo
+├── README.md
 └── config/
-    ├── default.json       # Configuración por defecto
-    └── example.json       # Ejemplo de configuración
+    ├── default.json
+    └── example.json
 ```
 
 ---
 
-## 🛠️ Requisitos del sistema
+🛠️ Requisitos del sistema
 
-| Requisito | Windows | Linux |
-|-----------|---------|-------|
-| **SO** | Windows 10/11 | Cualquier distro moderna |
-| **Python** | 3.8+ | 3.8+ |
-| **psutil** | ✅ | ✅ |
-| **wmi/pywin32** | Opcional (temperaturas) | ❌ |
-| **OpenHardwareMonitor** | Opcional (temperaturas) | ❌ |
-| **Terminal** | PowerShell, CMD, Windows Terminal | Cualquier terminal ANSI |
-
----
-
-## ❓ Solución de problemas
-
-### Windows
-
-#### Error: `psutil not found`
-```powershell
-pip install psutil
-```
-
-#### Error: `No module named 'wmi'`
-```powershell
-pip install wmi pywin32
-```
-
-#### No se ven temperaturas en Windows
-```powershell
-# 1. Instalar OpenHardwareMonitor
-# 2. Ejecutarlo (debe quedar abierto)
-# 3. Reiniciar PowerShell
-# 4. Volver a ejecutar el script
-```
-
-#### Los colores no se ven en PowerShell
-```powershell
-# Usar Windows Terminal (recomendado)
-# O activar colores ANSI en PowerShell:
-Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWord -Value 1
-```
-
-### Linux
-
-#### Error: `psutil not found`
-```bash
-pip3 install --user psutil
-# o en sistemas sin --user
-pip3 install psutil --break-system-packages
-```
-
-#### No se ven temperaturas
-```bash
-sudo apt install lm-sensors
-sudo sensors-detect
-```
-
-#### No se detecta GPU NVIDIA
-```bash
-nvidia-smi  # Debe mostrar información
-# Si no funciona, instalar drivers NVIDIA
-```
-
-#### El comando `sysmonitor` no se encuentra
-```bash
-# Reabrir la terminal o ejecutar:
-source ~/.bashrc
-
-# O agregar manualmente al PATH:
-export PATH="$HOME/.local/bin:$PATH"
-```
+Requisito Windows Linux
+SO Windows 10/11 Cualquier distro moderna
+Python 3.8+ 3.8+
+psutil ✅ ✅
+wmi/pywin32 Opcional (temperaturas) ❌
+OpenHardwareMonitor Opcional (temperaturas) ❌
+Terminal PowerShell, CMD, Windows Terminal Cualquier terminal ANSI
 
 ---
 
-## 📝 Licencia
+❓ Solución de problemas
 
-**GNU General Public License v3.0** — libre de usar, modificar y distribuir.
+Windows
+
+Problema Solución
+psutil not found pip install psutil
+No module named 'wmi' pip install wmi pywin32
+No se ven temperaturas Instala y ejecuta OpenHardwareMonitor
+Colores no visibles Usa Windows Terminal o ejecuta: Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWord -Value 1
+
+Linux
+
+Problema Solución
+psutil not found pip3 install --user psutil
+No se ven temperaturas sudo apt install lm-sensors && sudo sensors-detect
+No detecta GPU NVIDIA Instalar drivers NVIDIA y verificar con nvidia-smi
+sysmonitor no se encuentra source ~/.bashrc o export PATH="$PATH:$HOME/.local/bin"
+
+---
+
+📝 Licencia
+
+GNU General Public License v3.0 — libre de usar, modificar y distribuir.
 
 ---
 
 <div align="center">
 
-**Hecho con 🖤 para la terminal**
+Hecho con 🖤 para la terminal
 
 ```
 sysmonitor --help
 ```
 
-
 </div>
 ```
 
-## ✅ **Resumen de cambios en el README:**
-
-| Sección | Cambio |
-|---------|--------|
-| Título | Ahora dice "Windows/Linux" |
-| Instalación | Nueva sección completa para Windows 10/11 |
-| Ejecución | Comandos para PowerShell/CMD |
-| Configuración | Ruta para Windows (`%USERPROFILE%`) |
-| Integración | Ejemplo para PowerShell |
-| Compilado | Instrucciones para crear `.exe` |
-| Requisitos | Tabla comparativa Windows/Linux |
-| Solución de problemas | Sección específica para Windows
+---
