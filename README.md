@@ -25,13 +25,7 @@
 ### 🐧 Linux (todas las distribuciones)
 
 
-El instalador:
 
-· ✅ Verifica/instala Python 3 y pip
-· ✅ Instala psutil (dependencia principal)
-· ✅ Pregunta por soporte opcional para GPU
-· ✅ Crea configuración en ~/.config/sysmonitorpro/config.json
-· ✅ Pregunta si deseas el comando global sysmonitor
 ```
 ## 📸 Capturas
 
@@ -46,6 +40,11 @@ chmod +x uninstall.sh
 ```
 #### Instalador automático (recomendado)
 
+· ✅ Verifica/instala Python 3 y pip
+· ✅ Instala psutil (dependencia principal)
+· ✅ Pregunta por soporte opcional para GPU
+· ✅ Crea configuración en ~/.config/sysmonitorpro/config.json
+· ✅ Pregunta si deseas el comando global sysmonitor
 ```bash
 git clone https://github.com/george0884/sysmonitorpro.git && \
 cd sysmonitorpro && \
