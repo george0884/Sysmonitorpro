@@ -180,6 +180,7 @@ if [ "$IS_LINUX" = true ]; then
     rm -f *.AppImage 2>/dev/null || true
     rm -f appimagetool-*.AppImage 2>/dev/null || true
     rm -f linuxdeploy-*.AppImage 2>/dev/null || true
+    rm -f *.png
     rm -f create-appimage.sh build-appimage.sh simple-build.sh 2>/dev/null || true
     
     # Ejemplos de configuración
