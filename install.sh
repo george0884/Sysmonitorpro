@@ -1,6 +1,6 @@
 #!/bin/bash
-# install.sh - Instalador completo de SysMonitorPro
-# Compatible con Python 3.14+
+# install.sh - Instalador interactivo para SysMonitorPro (Linux)
+# Compatible con Python 3.8+
 
 set -e
 
@@ -10,94 +10,81 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 BOLD='\033[1m'
+D='\033[2m'
 
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}   SysMonitorPro - Instalador Automático${NC}"
+echo -e "${GREEN}   SysMonitorPro - Instalador Interactivo (Linux)${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
+echo ""
 
-# ===== 1. DETECTAR SISTEMA OPERATIVO =====
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    IS_LINUX=true
-    IS_WINDOWS=false
-elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-    IS_LINUX=false
-    IS_WINDOWS=true
+# === DETECTAR CARPETA DEL SCRIPT ===
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+echo -e "${D}📁 Carpeta del proyecto: ${SCRIPT_DIR}${NC}"
+echo ""
+
+# === 1. DETECTAR PYTHON ===
+echo -e "${YELLOW}▶ Verificando Python...${NC}"
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}✗ Python3 no instalado.${NC}"
+    echo -e "${YELLOW}  Instalando...${NC}"
+    sudo apt update && sudo apt install -y python3 python3-pip python3-venv
 else
-    IS_LINUX=false
-    IS_WINDOWS=false
+    echo -e "${GREEN}✓ Python3 encontrado: $(python3 --version)${NC}"
 fi
 
-# ===== 2. DETECTAR VERSIÓN DE PYTHON =====
-echo -e "\n${YELLOW}▶ Detectando Python...${NC}"
-PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
-PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
-echo -e "${GREEN}✓ Python ${PYTHON_VERSION} detectado${NC}"
-
-# ===== 3. INSTALAR VENV (si es Linux) =====
-if [ "$IS_LINUX" = true ]; then
-    echo -e "\n${YELLOW}▶ Instalando python${PYTHON_MAJOR}.${PYTHON_MINOR}-venv...${NC}"
-    if ! sudo apt install -y python${PYTHON_MAJOR}.${PYTHON_MINOR}-venv 2>/dev/null; then
-        echo -e "${YELLOW}⚠ Versión específica no encontrada, instalando python3-venv...${NC}"
-        sudo apt install -y python3-venv python3-full
-    fi
+# === 2. VERIFICAR/INSTALAR PIP ===
+echo -e "\n${YELLOW}▶ Verificando pip...${NC}"
+if ! command -v pip3 &> /dev/null; then
+    echo -e "${YELLOW}  Instalando pip...${NC}"
+    sudo apt install -y python3-pip
 fi
+echo -e "${GREEN}✓ pip3 disponible${NC}"
 
-# ===== 4. VERIFICAR MÓDULO VENV =====
-echo -e "\n${YELLOW}▶ Probando módulo venv...${NC}"
-if ! python3 -c "import venv" 2>/dev/null; then
-    echo -e "${RED}✗ Error: módulo venv no disponible${NC}"
-    echo -e "${YELLOW}Solución: sudo apt install python3-venv${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Módulo venv disponible${NC}"
-
-# ===== 5. CREAR ENTORNO VIRTUAL =====
+# === 3. CREAR ENTORNO VIRTUAL ===
 echo -e "\n${YELLOW}▶ Creando entorno virtual...${NC}"
 if [ -d "venv" ]; then
-    echo -e "${YELLOW}Eliminando entorno existente...${NC}"
+    echo -e "${YELLOW}  Eliminando entorno existente...${NC}"
     rm -rf venv
 fi
-python3 -m venv venv --without-pip 2>/dev/null || python3 -m venv venv
-
-# Instalar pip manualmente si falta
-if [ ! -f "venv/bin/pip" ]; then
-    echo -e "${YELLOW}Instalando pip manualmente...${NC}"
-    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-    venv/bin/python get-pip.py
-    rm get-pip.py
-fi
+python3 -m venv venv
 
 if [ ! -f "venv/bin/activate" ]; then
-    echo -e "${RED}✗ Error crítico: No se pudo crear el entorno virtual${NC}"
+    echo -e "${RED}✗ Error: No se pudo crear el entorno virtual${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ Entorno virtual creado exitosamente${NC}"
+echo -e "${GREEN}✓ Entorno virtual creado${NC}"
 
-# ===== 6. ACTIVAR Y INSTALAR PSUTIL =====
-echo -e "\n${YELLOW}▶ Instalando psutil...${NC}"
+# === 4. ACTIVAR E INSTALAR PSUTIL ===
+echo -e "\n${YELLOW}▶ Instalando dependencias...${NC}"
 source venv/bin/activate
-pip install --upgrade pip 2>/dev/null || true
+pip install --upgrade pip
 pip install psutil
-echo -e "${GREEN}✓ psutil instalado correctamente${NC}"
 
-# ===== 7. SOPORTE GPU OPCIONAL =====
+if python3 -c "import psutil" 2>/dev/null; then
+    echo -e "${GREEN}✓ psutil instalado correctamente${NC}"
+else
+    echo -e "${RED}✗ Error: psutil no se instaló correctamente${NC}"
+    exit 1
+fi
+
+# === 5. SOPORTE GPU OPCIONAL ===
 echo -e "\n${YELLOW}▶ ¿Instalar soporte para GPU? (s/n)${NC}"
 read -r instalar_gpu
 if [[ $instalar_gpu == "s" || $instalar_gpu == "S" ]]; then
-    echo -e "${YELLOW}Instalando GPUtil...${NC}"
+    echo -e "${YELLOW}  Instalando GPUtil...${NC}"
     pip install gputil
-    if [ "$IS_LINUX" = true ]; then
-        echo -e "${YELLOW}Instalando pyamdgpuinfo para AMD...${NC}"
-        pip install pyamdgpuinfo
-    fi
+    echo -e "${YELLOW}  Instalando pyamdgpuinfo...${NC}"
+    pip install pyamdgpuinfo
     echo -e "${GREEN}✓ Soporte GPU instalado${NC}"
 fi
 
-# ===== 8. CREAR CONFIGURACIÓN =====
+# === 6. CREAR CONFIGURACIÓN ===
 echo -e "\n${YELLOW}▶ Configurando archivos...${NC}"
 CONFIG_DIR="$HOME/.config/sysmonitorpro"
 mkdir -p "$CONFIG_DIR"
+
 if [ ! -f "$CONFIG_DIR/config.json" ]; then
     cat > "$CONFIG_DIR/config.json" << 'EOF'
 {
@@ -111,10 +98,13 @@ if [ ! -f "$CONFIG_DIR/config.json" ]; then
     "interfaz_red": "auto"
 }
 EOF
-    echo -e "${GREEN}✓ Configuración creada${NC}"
+    echo -e "${GREEN}✓ Configuración creada en $CONFIG_DIR/config.json${NC}"
+else
+    echo -e "${D}✓ Configuración ya existe${NC}"
 fi
 
-# ===== 9. CREAR LANZADOR LOCAL =====
+# === 7. CREAR LANZADOR LOCAL ===
+echo -e "\n${YELLOW}▶ Creando lanzador local...${NC}"
 cat > sysmonitor << 'EOF'
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -125,11 +115,10 @@ EOF
 chmod +x sysmonitor
 echo -e "${GREEN}✓ Lanzador creado: ./sysmonitor${NC}"
 
-# ===== 10. INSTALAR COMANDO GLOBAL =====
+# === 8. COMANDO GLOBAL OPCIONAL ===
 echo -e "\n${YELLOW}▶ ¿Instalar comando global 'sysmonitor'? (s/n)${NC}"
 read -r instalar_global
 if [[ $instalar_global == "s" || $instalar_global == "S" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     SCRIPT_PATH="$SCRIPT_DIR/sysmonitorpro.py"
     if [ ! -f "$SCRIPT_PATH" ]; then
         echo -e "${RED}✗ Error: No se encuentra sysmonitorpro.py${NC}"
@@ -142,10 +131,77 @@ python3 "$SCRIPT_PATH" "\$@"
 EOF
         sudo chmod +x /usr/local/bin/sysmonitor
         echo -e "${GREEN}✓ Comando 'sysmonitor' instalado en /usr/local/bin/${NC}"
+        echo -e "${GREEN}✓ Ahora puedes ejecutar 'sysmonitor' desde cualquier lugar${NC}"
     fi
 fi
 
-# ===== 11. PRUEBA RÁPIDA =====
+# === 9. CREAR ICONO ===
+echo -e "\n${YELLOW}▶ Creando icono...${NC}"
+if [ ! -f "$SCRIPT_DIR/icon.png" ]; then
+    # Crear icono SVG y convertirlo a PNG
+    cat > /tmp/icon.svg << 'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <circle cx="128" cy="128" r="110" fill="#1a1a2e" stroke="#7c7cff" stroke-width="8"/>
+  <text x="128" y="170" font-family="monospace" font-size="90" font-weight="bold" fill="#7c7cff" text-anchor="middle">S</text>
+  <text x="128" y="220" font-family="monospace" font-size="25" font-weight="bold" fill="#7c7cff" text-anchor="middle">M</text>
+  <text x="128" y="242" font-family="monospace" font-size="12" fill="#7c7cff" text-anchor="middle">Pro</text>
+</svg>
+EOF
+    # Intentar convertir SVG a PNG (si ImageMagick está instalado)
+    if command -v convert &> /dev/null; then
+        convert /tmp/icon.svg -resize 256x256 "$SCRIPT_DIR/icon.png"
+        echo -e "${GREEN}✓ Icono PNG creado${NC}"
+    else
+        # Si no hay ImageMagick, crear un PNG básico con texto
+        echo -e "${YELLOW}  ImageMagick no instalado. Creando icono básico...${NC}"
+        cat > "$SCRIPT_DIR/icon.png" << 'EOF'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
+EOF
+        echo -e "${YELLOW}✓ Icono básico creado${NC}"
+    fi
+    rm -f /tmp/icon.svg
+else
+    echo -e "${D}✓ Icono ya existe${NC}"
+fi
+
+# === 10. CREAR ACCESO DIRECTO EN EL ESCRITORIO ===
+echo -e "\n${YELLOW}▶ ¿Crear acceso directo en el escritorio? (s/n)${NC}"
+read -r crear_acceso
+if [[ $crear_acceso == "s" || $crear_acceso == "S" ]]; then
+    DESKTOP_FILE="$HOME/Desktop/sysmonitorpro.desktop"
+    
+    cat > "$DESKTOP_FILE" << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SysMonitorPro
+Comment=Monitor de sistema avanzado
+Exec=$SCRIPT_DIR/sysmonitor
+Icon=$SCRIPT_DIR/icon.png
+Terminal=true
+Categories=System;Monitor;
+StartupNotify=true
+EOF
+    chmod +x "$DESKTOP_FILE"
+    echo -e "${GREEN}✓ Acceso directo creado en el escritorio${NC}"
+    
+    # También crear en el menú de aplicaciones
+    MENU_FILE="$HOME/.local/share/applications/sysmonitorpro.desktop"
+    cp "$DESKTOP_FILE" "$MENU_FILE"
+    echo -e "${GREEN}✓ Acceso directo agregado al menú de aplicaciones${NC}"
+fi
+
+# === 11. LIMPIEZA DE ARCHIVOS DE WINDOWS ===
+echo -e "\n${YELLOW}▶ Limpiando archivos específicos de Windows...${NC}"
+rm -f *.bat 2>/dev/null || true
+rm -f *.ps1 2>/dev/null || true
+rm -f requirements-windows.txt 2>/dev/null || true
+rm -f powershell.jpg 2>/dev/null || true
+rm -f install-python-windows.bat 2>/dev/null || true
+rm -f *.png 2>/dev/null || true
+echo -e "${GREEN}✓ Archivos de Windows eliminados${NC}"
+
+# === 12. PRUEBA RÁPIDA ===
 echo -e "\n${YELLOW}▶ Probando instalación...${NC}"
 if source venv/bin/activate && python3 -c "import psutil" 2>/dev/null; then
     echo -e "${GREEN}✓ Todo funciona correctamente${NC}"
@@ -153,45 +209,7 @@ else
     echo -e "${RED}✗ Error en la prueba${NC}"
 fi
 
-# ===== 12. LIMPIEZA DE ARCHIVOS ESPECÍFICOS DE WINDOWS (SOLO EN LINUX) =====
-if [ "$IS_LINUX" = true ]; then
-    echo -e "\n${YELLOW}▶ Detectado sistema Linux. Eliminando archivos innecesarios para Windows...${NC}"
-    
-    # Scripts de Windows
-    echo -e "${YELLOW}   Eliminando scripts de Windows (.bat, .ps1)...${NC}"
-    rm -f *.bat 2>/dev/null || true
-    rm -f install-python-windows.bat 2>/dev/null || true
-    rm -f *.ps1 2>/dev/null || true
-    
-    # Archivos de requisitos de Windows
-    echo -e "${YELLOW}   Eliminando archivos de requisitos para Windows...${NC}"
-    rm -f requeriments-windows.txt 2>/dev/null || true
-    rm -f requirements-windows.txt 2>/dev/null || true
-    
-    # Imágenes de documentación de Windows
-    echo -e "${YELLOW}   Eliminando imágenes de documentación de Windows...${NC}"
-    rm -f powershell.jpg 2>/dev/null || true
-    rm -f Windows*.png 2>/dev/null || true
-    rm -f *.jpg 2>/dev/null || true
-    
-    # Archivos de construcción obsoletos (AppImage, etc.)
-    echo -e "${YELLOW}   Eliminando residuos de compilación...${NC}"
-    rm -rf build/ dist/ *.spec 2>/dev/null || true
-    rm -f *.AppImage 2>/dev/null || true
-    rm -f appimagetool-*.AppImage 2>/dev/null || true
-    rm -f linuxdeploy-*.AppImage 2>/dev/null || true
-    rm -f *.png
-    rm -f create-appimage.sh build-appimage.sh simple-build.sh 2>/dev/null || true
-    
-    # Ejemplos de configuración
-    echo -e "${YELLOW}   Eliminando ejemplos de configuración...${NC}"
-    rm -f config/example.json 2>/dev/null || true
-    
-    echo -e "${GREEN}✓ Archivos específicos de Windows eliminados.${NC}"
-    echo -e "${GREEN}✓ Residuos de compilación eliminados.${NC}"
-fi
-
-# ===== 13. FINAL =====
+# === 13. FINAL ===
 echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✓ Instalación completada!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════════${NC}"
@@ -199,6 +217,9 @@ echo -e "\n${YELLOW}Para ejecutar:${NC}"
 echo -e "  ./sysmonitor                # Desde la carpeta del proyecto"
 if [[ $instalar_global == "s" || $instalar_global == "S" ]]; then
     echo -e "  sysmonitor                  # Desde cualquier lugar"
+fi
+if [[ $crear_acceso == "s" || $crear_acceso == "S" ]]; then
+    echo -e "  Hacer doble clic en el icono del escritorio"
 fi
 echo -e "\n${YELLOW}Para ver opciones:${NC}"
 echo -e "  sysmonitor --help"
