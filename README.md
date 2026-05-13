@@ -84,6 +84,9 @@ Requisitos previos
 1. Instalar Python (3.8 o superior) desde python.org
       ⚠️ Importante: Marcar "Add Python to PATH" durante la instalación
 2. Abrir PowerShell como Administrador y ejecutar:
+3. Instalar git https://github.com/git-for-windows/git/releases/download/v2.54.0.windows.1/Git-2.54.0-64-bit.exe
+4. Instalar python 64x
+https://www.python.org/ftp/python/3.14.5/python-3.14.5-amd64.exe
 
 ```powershell
 # Verificar Python
