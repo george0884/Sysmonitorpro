@@ -99,8 +99,8 @@ pip install psutil
 pip install wmi pywin32 GPUtil
 ```
 
-1. Instalar OpenHardwareMonitor (necesario para temperaturas)
-      Descargar desde openhardwaremonitor.org
+1. Instalar Libre Hardware Monitor (necesario para temperaturas)
+      Descargar desde [librehardwaremonitor.com](https://librehardwaremonitor.com/)
       Debe quedar ejecutándose en segundo plano.
 
 Instalar SysMonitorPro
