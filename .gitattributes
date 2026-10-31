@@ -1,0 +1,5 @@
+# cmd.exe falla con goto/etiquetas en .bat con saltos de línea LF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+*.ico binary
