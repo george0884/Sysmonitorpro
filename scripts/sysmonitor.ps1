@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Lanzador para PowerShell (el programa está en la carpeta padre de scripts/)
+# Lanzador para PowerShell
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location (Split-Path -Parent $scriptDir)
+Set-Location $scriptDir
 python sysmonitorpro.py @args
