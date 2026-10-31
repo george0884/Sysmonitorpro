@@ -1,6 +1,8 @@
 @echo off
 title SysMonitorPro - Desinstalador Interactivo (Windows)
 color 0C
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
 echo =================================================
 echo    SysMonitorPro - Desinstalador Interactivo
@@ -26,6 +28,14 @@ if exist "sysmonitor.bat" (
     ) else (
         echo [INFO] Lanzador conservado.
     )
+)
+
+:: === 1b. ELIMINAR ACCESOS DIRECTOS (ESCRITORIO + MENU INICIO) ===
+echo.
+set /p eliminar_lnk="¿Deseas eliminar los accesos directos de SysMonitorPro? (S/N): "
+if /i "!eliminar_lnk!"=="S" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) { Remove-Item -LiteralPath (Join-Path $d 'SysMonitorPro.lnk') -ErrorAction SilentlyContinue }"
+    echo [OK] Accesos directos eliminados.
 )
 
 :: === 2. ELIMINAR ENTORNO VIRTUAL ===
