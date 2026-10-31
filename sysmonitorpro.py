@@ -20,6 +20,8 @@ import argparse
 import subprocess
 import platform
 import threading
+import atexit
+from collections import deque
 
 # ─── DETECTAR SISTEMA OPERATIVO ────────────────────────────────────────────
 IS_WINDOWS = platform.system() == "Windows"
@@ -76,7 +78,10 @@ CONFIG_DEFECTO = {
     "mostrar_discos": True,
     "mostrar_red": True,
     "mostrar_top": True,
+    "mostrar_fps": True,
     "interfaz_red": "auto",
+    "presentmon": "",          # Windows: ruta a PresentMon.exe (vacío = buscar)
+    "mangohud_logs": "",       # Linux: carpeta de registros de MangoHud (vacío = auto)
 }
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".config", "sysmonitorpro", "config.json")
 
@@ -818,6 +823,257 @@ def get_memory():
         datos["swap"] = {"name": "SWAP", "total": sw.total, "used": sw.used, "percent": sw.percent}
     return datos
 
+# ─── FPS ────────────────────────────────────────────────────────────────────
+# Windows: PresentMon (Intel, open source) captura por ETW cada frame que
+#          presenta cualquier juego DirectX/Vulkan/OpenGL. Requiere administrador.
+# Linux:   MangoHud escribe registros CSV (Shift_L+F2 o autostart_log=1);
+#          se lee el más reciente: en vivo si se está escribiendo, si no se
+#          muestra el resumen de la última partida.
+FPS_IGNORAR = {"dwm.exe", "windowsterminal.exe", "openconsole.exe", "conhost.exe",
+               "explorer.exe", "searchhost.exe", "shellexperiencehost.exe",
+               "startmenuexperiencehost.exe", "textinputhost.exe"}
+
+def stats_frametimes(fts):
+    """[ms por frame] -> (fps_promedio, fps_1pct_low, frametime_medio).
+    1% low = FPS equivalente al percentil 99 del frametime."""
+    fts = [f for f in fts if f and 0 < f < 5000]
+    if not fts:
+        return None, None, None
+    media = sum(fts) / len(fts)
+    p99 = sorted(fts)[min(len(fts) - 1, int(len(fts) * 0.99))]
+    return 1000 / media, 1000 / p99, media
+
+def pid_primer_plano():
+    try:
+        import ctypes
+        from ctypes import wintypes
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value
+    except Exception:
+        return None
+
+def es_admin_windows():
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+def buscar_presentmon(ruta_cfg=""):
+    if ruta_cfg:
+        return ruta_cfg if os.path.isfile(ruta_cfg) else None
+    for nombre in ("PresentMon.exe", "presentmon.exe"):
+        r = shutil.which(nombre)
+        if r:
+            return r
+    base = os.path.dirname(os.path.abspath(__file__))
+    # Las descargas oficiales se llaman p. ej. PresentMon-2.3.0-x64.exe
+    candidatos = sorted(glob.glob(os.path.join(base, "PresentMon*.exe")) +
+                        glob.glob(os.path.join(base, "tools", "PresentMon*.exe")))
+    candidatos = [c for c in candidatos if "arm" not in os.path.basename(c).lower()]
+    return candidatos[-1] if candidatos else None
+
+class FpsPresentMon:
+    VENTANA = 10.0                                   # segundos usados para el 1% low
+
+    def __init__(self, exe):
+        self.exe = exe
+        self.frames = {}                              # pid -> deque[(t, frametime_ms)]
+        self.nombres = {}
+        self.lock = threading.Lock()
+        self.error = None
+        self.proc = None
+        if not es_admin_windows():
+            self.error = "PresentMon necesita ejecutar SysMonitorPro como administrador"
+            return
+        atexit.register(self.detener)
+        threading.Thread(target=self._leer, daemon=True).start()
+
+    def detener(self):
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+
+    def _leer(self):
+        # PresentMon 2.x usa --opciones; 1.x usaba -opciones
+        variantes = (["--output_stdout", "--stop_existing_session", "--session_name", "SysMonitorPro"],
+                     ["-output_stdout", "-stop_existing_session", "-session_name", "SysMonitorPro"])
+        ultimo = ""
+        for args in variantes:
+            try:
+                self.proc = subprocess.Popen(
+                    [self.exe] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL, text=True, errors="ignore", bufsize=1,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            except OSError as e:
+                self.error = f"No se pudo ejecutar PresentMon: {e}"
+                return
+            cab = None
+            for linea in self.proc.stdout:
+                cols = linea.rstrip("\r\n").split(",")
+                if cab is None:
+                    if "Application" in cols and "ProcessID" in cols:
+                        idx = {c: i for i, c in enumerate(cols)}
+                        col_ft = next((idx[c] for c in ("FrameTime", "MsBetweenPresents", "msBetweenPresents")
+                                       if c in idx), None)
+                        if col_ft is None:
+                            self.error = "Formato de PresentMon no reconocido"
+                            self.detener()
+                            return
+                        cab = (idx["Application"], idx["ProcessID"], col_ft, len(cols))
+                        self.error = None
+                    elif linea.strip():
+                        ultimo = linea.strip()
+                    continue
+                if len(cols) < cab[3]:
+                    continue                          # avisos de PresentMon mezclados
+                try:
+                    ft = float(cols[cab[2]])
+                    pid = int(cols[cab[1]])
+                except ValueError:
+                    continue                          # "NA" en frames descartados
+                ahora = time.monotonic()
+                with self.lock:
+                    dq = self.frames.setdefault(pid, deque())
+                    dq.append((ahora, ft))
+                    while dq and ahora - dq[0][0] > self.VENTANA:
+                        dq.popleft()
+                    self.nombres[pid] = cols[cab[0]]
+            self.proc.wait()
+            if cab is not None:
+                self.error = "PresentMon se detuvo"
+                return
+        self.error = f"PresentMon no pudo iniciar: {ultimo[:60]}" if ultimo else "PresentMon no pudo iniciar"
+
+    def lectura(self):
+        ahora = time.monotonic()
+        with self.lock:
+            activos = {pid: list(dq) for pid, dq in self.frames.items()
+                       if dq and ahora - dq[-1][0] < 2
+                       and self.nombres.get(pid, "").lower() not in FPS_IGNORAR}
+            nombres = dict(self.nombres)
+        if not activos:
+            return {"fuente": "PresentMon", "app": None, "error": self.error}
+        fg = pid_primer_plano()
+        if fg in activos:
+            pid = fg
+        else:                                         # la terminal está delante: el que más frames da
+            pid = max(activos, key=lambda p: sum(1 for t, _ in activos[p] if ahora - t <= 1))
+        frames = activos[pid]
+        fps, _, ft = stats_frametimes([f for t, f in frames if ahora - t <= 1])
+        _, low, _ = stats_frametimes([f for _, f in frames])
+        return {"fuente": "PresentMon", "app": nombres.get(pid), "pid": pid, "vivo": True,
+                "fps": fps, "low1": low, "frametime": ft, "error": None}
+
+class FpsMangoHud:
+    def __init__(self, carpeta=""):
+        self.carpetas = [carpeta] if carpeta else self._carpetas_auto()
+        self._resumenes = {}                          # (ruta, mtime) -> lectura
+
+    @staticmethod
+    def _carpetas_auto():
+        carpetas = []
+        conf = os.path.expanduser("~/.config/MangoHud/MangoHud.conf")
+        for linea in (leer(conf, "") or "").splitlines():
+            if linea.strip().startswith("output_folder"):
+                carpetas.append(os.path.expanduser(linea.split("=", 1)[1].strip()))
+        carpetas += [os.path.expanduser("~/mangohud-logs"), os.path.expanduser("~")]
+        return [c for c in dict.fromkeys(carpetas) if os.path.isdir(c)]
+
+    @staticmethod
+    def _cabecera(ruta):
+        """Devuelve (indices, offset de datos) si el CSV es de MangoHud."""
+        try:
+            with open(ruta, errors="ignore") as f:
+                inicio = f.read(4096)
+        except OSError:
+            return None
+        if not inicio.startswith("os,"):              # los registros de MangoHud empiezan así
+            return None
+        pos = 0
+        for linea in inicio.splitlines(keepends=True):
+            pos += len(linea.encode())
+            cols = linea.strip().split(",")
+            if cols and cols[0] == "fps":
+                idx = {c: i for i, c in enumerate(cols)}
+                return idx, pos
+        return None
+
+    def _ultimo_registro(self):
+        archivos = []
+        for c in self.carpetas:
+            archivos += [f for f in glob.glob(os.path.join(c, "*.csv")) if not f.endswith("_summary.csv")]
+        archivos.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+        for f in archivos[:5]:
+            cab = self._cabecera(f)
+            if cab:
+                return f, cab
+        return None, None
+
+    @staticmethod
+    def _filas(ruta, idx, desde, max_bytes=None):
+        try:
+            with open(ruta, "rb") as f:
+                f.seek(0, 2)
+                tam = f.tell()
+                inicio = max(desde, tam - max_bytes) if max_bytes else desde
+                f.seek(inicio)
+                datos = f.read().decode(errors="ignore").splitlines()
+        except OSError:
+            return []
+        if max_bytes and inicio > desde:
+            datos = datos[1:]                         # primera línea posiblemente cortada
+        filas = []
+        i_fps, i_ft = idx.get("fps"), idx.get("frametime")
+        for linea in datos:
+            cols = linea.split(",")
+            try:
+                filas.append((float(cols[i_fps]), float(cols[i_ft]) if i_ft is not None else None))
+            except (ValueError, IndexError, TypeError):
+                pass
+        return filas
+
+    def lectura(self):
+        ruta, cab = self._ultimo_registro()
+        if not ruta:
+            return {"fuente": "MangoHud", "app": None,
+                    "error": "Sin registros de MangoHud (Shift_L+F2 en el juego o autostart_log=1)"}
+        mtime = os.path.getmtime(ruta)
+        app = re.sub(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$", "", os.path.splitext(os.path.basename(ruta))[0])
+        vivo = time.time() - mtime < 5
+        idx, desde = cab
+        if vivo:
+            filas = self._filas(ruta, idx, desde, max_bytes=64 * 1024)
+            if not filas:
+                return {"fuente": "MangoHud", "app": app, "error": None, "vivo": True,
+                        "fps": None, "low1": None, "frametime": None}
+            fts = [ft for _, ft in filas[-200:] if ft]
+            _, low, ft_med = stats_frametimes(fts)
+            return {"fuente": "MangoHud", "app": app, "vivo": True, "error": None,
+                    "fps": filas[-1][0], "low1": low, "frametime": filas[-1][1] or ft_med}
+        clave = (ruta, mtime)
+        if clave not in self._resumenes:
+            filas = self._filas(ruta, idx, desde)
+            fts = [ft for _, ft in filas if ft]
+            fps, low, ft_med = stats_frametimes(fts)
+            if fps is None and filas:
+                fps = sum(f for f, _ in filas) / len(filas)
+            self._resumenes = {clave: {"fuente": "MangoHud", "app": app, "vivo": False, "error": None,
+                                       "fps": fps, "low1": low, "frametime": ft_med,
+                                       "hace": None}}
+        res = dict(self._resumenes[clave])
+        res["hace"] = time.time() - mtime
+        return res
+
+def crear_fuente_fps(cfg):
+    if IS_WINDOWS:
+        exe = buscar_presentmon(cfg.get("presentmon", ""))
+        if not exe:
+            return None
+        return FpsPresentMon(exe)
+    return FpsMangoHud(os.path.expanduser(cfg.get("mangohud_logs", "") or ""))
+
 # ─── RECOLECCIÓN ────────────────────────────────────────────────────────────
 def get_disks():
     discos = listar_discos_windows() if IS_WINDOWS else listar_discos_linux()
@@ -865,7 +1121,7 @@ def uptime_str(segundos: float) -> str:
     m = resto // 60
     return f"{d}d {h:02d}h {m:02d}m" if d else f"{h}h {m:02d}m"
 
-def recolectar(info: dict, cfg: dict, gpus: list, n_procs: int = 10) -> dict:
+def recolectar(info: dict, cfg: dict, gpus: list, fps=None, n_procs: int = 10) -> dict:
     cpu_pcts = psutil.cpu_percent(percpu=True)
     temp_global, temps_core = get_cpu_temps()
     temps_hilo = [temps_core.get(cid) if cid is not None else None for cid in info["core_map"]]
@@ -894,6 +1150,12 @@ def recolectar(info: dict, cfg: dict, gpus: list, n_procs: int = 10) -> dict:
         pass
     if cfg["mostrar_gpu"]:
         datos["gpu"] = leer_gpus_windows(gpus) if IS_WINDOWS else [leer_gpu_linux(g) for g in gpus]
+    if cfg["mostrar_fps"]:
+        if fps is not None:
+            datos["fps"] = fps.lectura()
+        else:
+            datos["fps"] = {"fuente": "PresentMon" if IS_WINDOWS else "MangoHud", "app": None,
+                            "error": "PresentMon no encontrado: copia PresentMon.exe en la carpeta del programa"}
     if cfg["mostrar_red"]:
         datos["network"] = get_net(cfg.get("interfaz_red", "auto"))
     if cfg["mostrar_discos"]:
@@ -946,6 +1208,28 @@ def render(datos: dict, cols: int, intervalo: float):
             if g["vram_total"]:
                 pct = (g["vram_used"] or 0) * 100 / g["vram_total"]
                 out.append(f"  {C}{'VRAM':<8}{NC} {barra(pct)}  {C}{humanize(g['vram_used'])} / {humanize(g['vram_total'])}{NC}\033[K")
+        out.append(sep(cols))
+
+    # FPS
+    if "fps" in datos:
+        fp = datos["fps"]
+        if fp.get("app") and fp.get("fps") is not None:
+            col = R if fp["fps"] < 30 else (Y if fp["fps"] < 60 else G)
+            if fp.get("vivo"):
+                titulo = f"{D}{fp['app'][:35]}  ({fp['fuente']}){NC}"
+            else:
+                mins = int((fp.get("hace") or 0) // 60)
+                titulo = f"{D}última partida: {fp['app'][:28]} · hace {mins} min{NC}"
+            out.append(f" {M}▶ FPS{NC}  {titulo}\033[K")
+            etiqueta = "FPS" if fp.get("vivo") else "Prom."
+            low = f"{fp['low1']:.0f}" if fp.get("low1") else "N/A"
+            ft = f"{fp['frametime']:.1f} ms" if fp.get("frametime") else "N/A"
+            out.append(f"  {C}{etiqueta:<8}{NC} {col}\033[1m{fp['fps']:>5.0f}{NC}"
+                       f"   {C}1% low{NC} {low:>5}   {C}Frametime{NC} {ft}\033[K")
+        elif fp.get("app"):
+            out.append(f" {M}▶ FPS{NC}  {D}{fp['app'][:35]}  (esperando datos){NC}\033[K")
+        else:
+            out.append(f" {M}▶ FPS{NC}  {D}{(fp.get('error') or 'Ningún juego detectado')[:58]}{NC}\033[K")
         out.append(sep(cols))
 
     # RECURSOS
@@ -1029,6 +1313,7 @@ def parse_args():
     ap.add_argument("--no-disks", action="store_true", help="Ocultar sección discos")
     ap.add_argument("--no-network", action="store_true", help="Ocultar sección red")
     ap.add_argument("--no-top", action="store_true", help="Ocultar top procesos")
+    ap.add_argument("--no-fps", action="store_true", help="Ocultar sección FPS")
     ap.add_argument("-i", "--interval", type=float, help="Intervalo de actualización en segundos")
     ap.add_argument("-c", "--config", help="Usar configuración específica")
     return ap.parse_args()
@@ -1040,7 +1325,8 @@ def main():
     if args.interval:
         cfg["intervalo"] = args.interval
     for flag, clave in (("no_gpu", "mostrar_gpu"), ("no_disks", "mostrar_discos"),
-                        ("no_network", "mostrar_red"), ("no_top", "mostrar_top")):
+                        ("no_network", "mostrar_red"), ("no_top", "mostrar_top"),
+                        ("no_fps", "mostrar_fps")):
         if getattr(args, flag):
             cfg[clave] = False
     intervalo = max(0.2, float(cfg["intervalo"]))
@@ -1050,12 +1336,14 @@ def main():
     if cfg["mostrar_gpu"]:
         gpus = detectar_gpus_windows() if IS_WINDOWS else detectar_gpus_linux()
 
+    fps = crear_fuente_fps(cfg) if cfg["mostrar_fps"] else None
+
     # Primera muestra: inicializa contadores de CPU, red y disco
-    datos = recolectar(system_info, cfg, gpus)
+    datos = recolectar(system_info, cfg, gpus, fps)
 
     if args.json:
         time.sleep(min(intervalo, 1.0))
-        datos = recolectar(system_info, cfg, gpus)
+        datos = recolectar(system_info, cfg, gpus, fps)
         print(json.dumps(datos, indent=2, ensure_ascii=False, default=str))
         return
 
@@ -1105,7 +1393,7 @@ def main():
                     clear_screen()
                     first = False
                 cols = shutil.get_terminal_size().columns
-                render(recolectar(system_info, cfg, gpus), cols, intervalo)
+                render(recolectar(system_info, cfg, gpus, fps), cols, intervalo)
                 ready, _, _ = _sel.select([sys.stdin], [], [], intervalo)
                 if ready:
                     key = sys.stdin.read(1).lower()
@@ -1125,7 +1413,7 @@ def main():
                 if size != last_size:
                     clear_screen()
                     last_size = size
-                render(recolectar(system_info, cfg, gpus), size.columns, intervalo)
+                render(recolectar(system_info, cfg, gpus, fps), size.columns, intervalo)
 
                 fin = time.monotonic() + intervalo
                 while time.monotonic() < fin:
