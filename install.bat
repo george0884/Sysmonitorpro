@@ -63,6 +63,33 @@ if errorlevel 1 (
 )
 echo.
 
+:: === 4b. FPS OPCIONAL (PRESENTMON) ===
+:: PresentMon (Intel, open source) mide los FPS de cualquier juego.
+:: Se descarga la ultima version oficial desde GitHub a esta carpeta.
+set "SM_DIR=%SCRIPT_DIR:~0,-1%"
+if exist "%SCRIPT_DIR%PresentMon*.exe" (
+    echo [OK] PresentMon ya esta en la carpeta: la seccion FPS se activa sola
+    goto :fin_fps
+)
+set /p instalar_fps="[?] Descargar PresentMon para ver FPS de juegos? (S/N): "
+if /i not "%instalar_fps%"=="S" goto :fin_fps
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference = 'Stop';" ^
+  "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;" ^
+  "try {" ^
+  "  $rels = Invoke-RestMethod 'https://api.github.com/repos/GameTechDev/PresentMon/releases?per_page=10' -Headers @{ 'User-Agent' = 'SysMonitorPro' };" ^
+  "  $a = $rels | Where-Object { -not $_.prerelease } | ForEach-Object { $_.assets } | Where-Object { $_.name -match '^PresentMon-[0-9.]+-x64\.exe$' } | Select-Object -First 1;" ^
+  "  if (-not $a) { throw 'no se encontro PresentMon-x.y.z-x64.exe en las versiones publicadas' };" ^
+  "  Invoke-WebRequest $a.browser_download_url -OutFile (Join-Path $env:SM_DIR $a.name) -UseBasicParsing;" ^
+  "  Write-Host ('[OK] Descargado: ' + $a.name)" ^
+  "} catch { Write-Host ('[ERROR] No se pudo descargar PresentMon: ' + $_.Exception.Message); exit 1 }"
+if not errorlevel 1 (
+    echo [INFO] Para medir FPS, SysMonitorPro debe abrirse como administrador.
+    echo        El acceso directo se creara con "Ejecutar como administrador".
+)
+:fin_fps
+echo.
+
 :: === 5. CREAR CONFIGURACION ===
 echo [5/8] Configurando archivos...
 set CONFIG_DIR=%USERPROFILE%\.config\sysmonitorpro
@@ -113,20 +140,23 @@ if /i not "%crear_acceso%"=="S" goto :sin_acceso
 :: Las rutas se pasan por variables de entorno para no romper comillas con
 :: espacios, acentos o parentesis. GetFolderPath('Desktop') respeta el
 :: escritorio redirigido a OneDrive (antes se asumia %USERPROFILE%\Desktop).
-set "SM_DIR=%SCRIPT_DIR:~0,-1%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$w = New-Object -ComObject WScript.Shell;" ^
   "$ok = $true;" ^
   "foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {" ^
   "  try {" ^
-  "    $l = $w.CreateShortcut((Join-Path $dir 'SysMonitorPro.lnk'));" ^
+  "    $p = Join-Path $dir 'SysMonitorPro.lnk';" ^
+  "    $l = $w.CreateShortcut($p);" ^
   "    $l.TargetPath = Join-Path $env:SM_DIR 'sysmonitor.bat';" ^
   "    $l.WorkingDirectory = $env:SM_DIR;" ^
   "    $ico = Join-Path $env:SM_DIR 'icon.ico';" ^
   "    if (Test-Path $ico) { $l.IconLocation = $ico + ',0' };" ^
   "    $l.Description = 'Monitor de sistema avanzado';" ^
   "    $l.Save();" ^
-  "    Write-Host ('[OK] Acceso directo: ' + (Join-Path $dir 'SysMonitorPro.lnk'))" ^
+  "    if (Get-ChildItem -Path $env:SM_DIR -Filter 'PresentMon*.exe') {" ^
+  "      $b = [IO.File]::ReadAllBytes($p); $b[0x15] = $b[0x15] -bor 0x20; [IO.File]::WriteAllBytes($p, $b)" ^
+  "    };" ^
+  "    Write-Host ('[OK] Acceso directo: ' + $p)" ^
   "  } catch { Write-Host ('[ERROR] ' + $_.Exception.Message); $ok = $false }" ^
   "};" ^
   "if (-not $ok) { exit 1 }"

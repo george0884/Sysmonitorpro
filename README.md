@@ -217,8 +217,13 @@ Opciones disponibles
 
 🎮 FPS
 
-La sección FPS aparece sola cuando hay un juego y la herramienta ya está en el equipo; si no, no se muestra
-y no hace falta instalar nada.
+La sección FPS aparece sola cuando hay un juego y la herramienta ya está en el equipo; si no, no se muestra.
+Los instaladores preguntan si quieres instalarla:
+
+· install.bat: "¿Descargar PresentMon para ver FPS?" → baja la última versión oficial a la carpeta del programa
+  y crea el acceso directo con "Ejecutar como administrador" (PresentMon lo necesita).
+· install.sh: "¿Instalar MangoHud para ver FPS?" → lo instala (apt/dnf/pacman/zypper) y, si no tienes
+  configuración propia, crea una que guarda el registro de FPS en ~/mangohud-logs.
 
 · Windows: usa PresentMon si está en el PATH o en la carpeta del programa (o en "presentmon") y SysMonitorPro
   se abrió como administrador.
