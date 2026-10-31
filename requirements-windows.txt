@@ -1,0 +1,7 @@
+# SysMonitorPro - Dependencias para Windows
+# Instalar con: pip install -r requirements-windows.txt
+psutil>=5.8.0
+
+# Discos físicos, GPU y sensores de LibreHardwareMonitor
+wmi>=1.5.0
+pywin32>=300

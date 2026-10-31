@@ -4,7 +4,6 @@
     "mostrar_discos": true,
     "mostrar_red": true,
     "mostrar_top": true,
-    "grafico_tamano": 50,
-    "historial_segundos": 120,
+    "mostrar_fps": true,
     "interfaz_red": "eth0"
 }

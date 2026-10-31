@@ -117,15 +117,57 @@ else
     exit 1
 fi
 
-# === 6. SOPORTE GPU OPCIONAL ===
-echo -e "\n${YELLOW}▶ ¿Instalar soporte para GPU? (s/n)${NC}"
-read -r instalar_gpu
-if [[ $instalar_gpu == "s" || $instalar_gpu == "S" ]]; then
-    echo -e "${YELLOW}  Instalando GPUtil...${NC}"
-    pip install gputil
-    echo -e "${YELLOW}  Instalando pyamdgpuinfo...${NC}"
-    pip install pyamdgpuinfo
-    echo -e "${GREEN}✓ Soporte GPU instalado${NC}"
+# === 6. GPU ===
+# No hace falta instalar nada: NVIDIA se lee con nvidia-smi (viene con el
+# driver) y AMD/Intel directamente desde /sys.
+echo -e "${GREEN}✓ GPU: se lee sin paquetes extra${NC}"
+
+# === 6b. FPS OPCIONAL (MANGOHUD) ===
+# MangoHud muestra los FPS encima del juego y guarda registros que
+# SysMonitorPro lee para su sección FPS.
+if command -v mangohud &> /dev/null; then
+    echo -e "${GREEN}✓ MangoHud ya instalado: la sección FPS se activa sola${NC}"
+else
+    echo -e "\n${YELLOW}▶ ¿Instalar MangoHud para ver FPS de juegos? (s/n)${NC}"
+    read -r instalar_fps
+    if [[ $instalar_fps == "s" || $instalar_fps == "S" ]]; then
+        if command -v apt &> /dev/null; then
+            sudo apt install -y mangohud || true
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y mangohud || true
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --needed --noconfirm mangohud || true
+        elif command -v zypper &> /dev/null; then
+            sudo zypper install -y mangohud || true
+        fi
+        if command -v mangohud &> /dev/null; then
+            echo -e "${GREEN}✓ MangoHud instalado${NC}"
+        else
+            echo -e "${RED}✗ No se pudo instalar MangoHud (instálalo desde tu gestor de paquetes)${NC}"
+        fi
+    fi
+fi
+
+# Sin configuración propia, se crea una que guarda el registro de FPS
+# automáticamente (sin ella MangoHud no escribe nada que leer).
+MH_CONF="$HOME/.config/MangoHud/MangoHud.conf"
+if command -v mangohud &> /dev/null && [ ! -f "$MH_CONF" ]; then
+    mkdir -p "$(dirname "$MH_CONF")" "$HOME/mangohud-logs"
+    cat > "$MH_CONF" << EOF
+# Creado por SysMonitorPro
+fps
+frametime
+cpu_stats
+gpu_stats
+toggle_hud=Shift_R+F12
+toggle_logging=Shift_L+F2
+output_folder=$HOME/mangohud-logs
+autostart_log=1
+EOF
+    echo -e "${GREEN}✓ MangoHud configurado: registros en ~/mangohud-logs${NC}"
+fi
+if command -v mangohud &> /dev/null; then
+    echo -e "${D}  Para cada juego en Steam: Propiedades → Opciones de lanzamiento → mangohud %command%${NC}"
 fi
 
 # === 7. CREAR CONFIGURACIÓN ===
@@ -141,8 +183,7 @@ if [ ! -f "$CONFIG_DIR/config.json" ]; then
     "mostrar_discos": true,
     "mostrar_red": true,
     "mostrar_top": true,
-    "grafico_tamano": 40,
-    "historial_segundos": 60,
+    "mostrar_fps": true,
     "interfaz_red": "auto"
 }
 EOF

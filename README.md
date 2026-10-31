@@ -10,13 +10,14 @@
 | Módulo | Detalle |
 |--------|---------|
 | **CPU** | Uso real por núcleo · Frecuencia GHz · Temperatura con colores |
-| **Temperatura** | Soporte Intel, AMD, NVMe, GPU (Windows via OpenHardwareMonitor) |
+| **Temperatura** | Reales: Intel (por núcleo), AMD (Tdie/Tctl), NVMe/SATA, GPU (Windows vía LibreHardwareMonitor). Si no hay sensor se muestra N/A, nunca un valor inventado |
 | **RAM / SWAP** | Uso en tiempo real con barras de progreso |
 | **Red** | Velocidad ↓ / ↑ instantánea · Total acumulado · Detección automática |
-| **Discos** | Uso por partición · Bytes leídos/escritos |
+| **Discos** | Todos los discos físicos (NVMe/SSD/HDD/USB) · Uso agregado de sus particiones (LVM/LUKS/RAID/btrfs) · Lectura/escritura por segundo · Temperatura |
 | **Procesos** | Top procesos ordenados por CPU% · PID · MEM% · Usuario |
 | **Gráficos históricos** | Visualización ASCII del uso de CPU y RAM (últimos 60 segundos) |
-| **GPU** | Soporte NVIDIA, AMD, Intel |
+| **FPS** | Juego activo, FPS, 1% low y frametime · Solo si ya tienes PresentMon (Windows, como administrador) o MangoHud (Linux); si no, la sección no aparece |
+| **GPU** | NVIDIA (nvidia-smi), AMD (sysfs: uso, VRAM, temp), Intel (frecuencia) · Windows: contadores nativos o LibreHardwareMonitor |
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
@@ -96,7 +97,7 @@ python --version
 pip install psutil
 
 # Dependencias opcionales para temperaturas
-pip install wmi pywin32 GPUtil
+pip install wmi pywin32
 ```
 
 1. Instalar Libre Hardware Monitor (necesario para temperaturas)
@@ -159,9 +160,9 @@ Opción Descripción
 --no-disks Ocultar sección discos
 --no-network Ocultar sección red
 --no-top Ocultar top procesos
+--no-fps Ocultar sección FPS
 -i N / --interval N Intervalo de actualización (ej: -i 2.0)
 -c ARCHIVO / --config ARCHIVO Usar configuración específica
---hist-size N Tamaño del historial (segundos)
 --help Mostrar ayuda
 
 Ejemplos
@@ -207,21 +208,37 @@ Opciones disponibles
     "mostrar_discos": true,
     "mostrar_red": true,
     "mostrar_top": true,
-    "grafico_tamano": 40,
-    "historial_segundos": 60,
-    "interfaz_red": "auto"
+    "mostrar_fps": true,
+    "interfaz_red": "auto",
+    "presentmon": "",
+    "mangohud_logs": ""
 }
 ```
 
+🎮 FPS
+
+La sección FPS aparece sola cuando hay un juego y la herramienta ya está en el equipo; si no, no se muestra.
+Los instaladores preguntan si quieres instalarla:
+
+· install.bat: "¿Descargar PresentMon para ver FPS?" → baja la última versión oficial a la carpeta del programa
+  y crea el acceso directo con "Ejecutar como administrador" (PresentMon lo necesita).
+· install.sh: "¿Instalar MangoHud para ver FPS?" → lo instala (apt/dnf/pacman/zypper) y, si no tienes
+  configuración propia, crea una que guarda el registro de FPS en ~/mangohud-logs.
+
+· Windows: usa PresentMon si está en el PATH o en la carpeta del programa (o en "presentmon") y SysMonitorPro
+  se abrió como administrador.
+· Linux: usa los registros de MangoHud si está instalado (Shift_L+F2 en el juego para grabar). Sin partida en
+  curso muestra el resumen de la última.
 Opción Valores Defecto Descripción
 intervalo 0.5 - 5.0 1.0 Segundos entre actualizaciones
 mostrar_gpu true/false true Mostrar/ocultar GPU
 mostrar_discos true/false true Mostrar/ocultar discos
 mostrar_red true/false true Mostrar/ocultar red
 mostrar_top true/false true Mostrar/ocultar top procesos
-grafico_tamano 20 - 100 40 Ancho del gráfico histórico
-historial_segundos 30 - 300 60 Duración del historial
+mostrar_fps true/false true Mostrar/ocultar FPS (si hay PresentMon o MangoHud)
 interfaz_red "auto" / nombre "auto" Interfaz específica
+presentmon ruta "" Ruta a PresentMon.exe (vacío = buscar)
+mangohud_logs carpeta "" Carpeta de registros de MangoHud (vacío = auto)
 
 ---
 
@@ -326,7 +343,9 @@ sysmonitorpro/
 ├── install.sh             # Instalador Linux
 ├── install.bat            # Instalador Windows
 ├── uninstall.sh           # Desinstalador Linux
-├── setup.py               # Instalación con pip
+├── setup.py               # Instalación con pip (pip install . → comando sysmonitor)
+├── requirements-linux.txt
+├── requirements-windows.txt
 ├── .gitignore
 ├── LICENSE                # GPL-3.0
 ├── README.md
@@ -356,7 +375,7 @@ Windows
 Problema Solución
 psutil not found pip install psutil
 No module named 'wmi' pip install wmi pywin32
-No se ven temperaturas Instala y ejecuta OpenHardwareMonitor
+No se ven temperaturas Instala y ejecuta LibreHardwareMonitor (como administrador, se lee root\LibreHardwareMonitor; OpenHardwareMonitor también funciona)
 Colores no visibles Usa Windows Terminal o ejecuta: Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWord -Value 1
 
 Linux
@@ -364,6 +383,7 @@ Linux
 Problema Solución
 psutil not found pip3 install --user psutil
 No se ven temperaturas sudo apt install lm-sensors && sudo sensors-detect
+Sin temperatura en discos SATA sudo modprobe drivetemp (persistente: echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf)
 No detecta GPU NVIDIA Instalar drivers NVIDIA y verificar con nvidia-smi
 sysmonitor no se encuentra source ~/.bashrc o export PATH="$PATH:$HOME/.local/bin"
 
