@@ -1067,12 +1067,17 @@ class FpsMangoHud:
         return res
 
 def crear_fuente_fps(cfg):
+    """Solo usa lo que ya está en el equipo: si falta PresentMon (o permisos de
+    administrador) o MangoHud, la sección FPS simplemente no se muestra."""
     if IS_WINDOWS:
         exe = buscar_presentmon(cfg.get("presentmon", ""))
-        if not exe:
+        if not exe or not es_admin_windows():
             return None
         return FpsPresentMon(exe)
-    return FpsMangoHud(os.path.expanduser(cfg.get("mangohud_logs", "") or ""))
+    carpeta = os.path.expanduser(cfg.get("mangohud_logs", "") or "")
+    if not carpeta and not shutil.which("mangohud"):
+        return None
+    return FpsMangoHud(carpeta)
 
 # ─── RECOLECCIÓN ────────────────────────────────────────────────────────────
 def get_disks():
@@ -1150,12 +1155,10 @@ def recolectar(info: dict, cfg: dict, gpus: list, fps=None, n_procs: int = 10) -
         pass
     if cfg["mostrar_gpu"]:
         datos["gpu"] = leer_gpus_windows(gpus) if IS_WINDOWS else [leer_gpu_linux(g) for g in gpus]
-    if cfg["mostrar_fps"]:
-        if fps is not None:
-            datos["fps"] = fps.lectura()
-        else:
-            datos["fps"] = {"fuente": "PresentMon" if IS_WINDOWS else "MangoHud", "app": None,
-                            "error": "PresentMon no encontrado: copia PresentMon.exe en la carpeta del programa"}
+    if cfg["mostrar_fps"] and fps is not None:
+        lectura = fps.lectura()
+        if lectura.get("app"):                        # sin juego detectado no se muestra nada
+            datos["fps"] = lectura
     if cfg["mostrar_red"]:
         datos["network"] = get_net(cfg.get("interfaz_red", "auto"))
     if cfg["mostrar_discos"]:
@@ -1226,10 +1229,8 @@ def render(datos: dict, cols: int, intervalo: float):
             ft = f"{fp['frametime']:.1f} ms" if fp.get("frametime") else "N/A"
             out.append(f"  {C}{etiqueta:<8}{NC} {col}\033[1m{fp['fps']:>5.0f}{NC}"
                        f"   {C}1% low{NC} {low:>5}   {C}Frametime{NC} {ft}\033[K")
-        elif fp.get("app"):
-            out.append(f" {M}▶ FPS{NC}  {D}{fp['app'][:35]}  (esperando datos){NC}\033[K")
         else:
-            out.append(f" {M}▶ FPS{NC}  {D}{(fp.get('error') or 'Ningún juego detectado')[:58]}{NC}\033[K")
+            out.append(f" {M}▶ FPS{NC}  {D}{fp['app'][:35]}  (esperando datos){NC}\033[K")
         out.append(sep(cols))
 
     # RECURSOS

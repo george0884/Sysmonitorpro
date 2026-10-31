@@ -117,16 +117,10 @@ else
     exit 1
 fi
 
-# === 6. SOPORTE GPU OPCIONAL ===
-echo -e "\n${YELLOW}▶ ¿Instalar soporte para GPU? (s/n)${NC}"
-read -r instalar_gpu
-if [[ $instalar_gpu == "s" || $instalar_gpu == "S" ]]; then
-    echo -e "${YELLOW}  Instalando GPUtil...${NC}"
-    pip install gputil
-    echo -e "${YELLOW}  Instalando pyamdgpuinfo...${NC}"
-    pip install pyamdgpuinfo
-    echo -e "${GREEN}✓ Soporte GPU instalado${NC}"
-fi
+# === 6. GPU ===
+# No hace falta instalar nada: NVIDIA se lee con nvidia-smi (viene con el
+# driver) y AMD/Intel directamente desde /sys.
+echo -e "${GREEN}✓ GPU: se lee sin paquetes extra${NC}"
 
 # === 7. CREAR CONFIGURACIÓN ===
 echo -e "\n${YELLOW}▶ Configurando archivos...${NC}"
@@ -141,8 +135,7 @@ if [ ! -f "$CONFIG_DIR/config.json" ]; then
     "mostrar_discos": true,
     "mostrar_red": true,
     "mostrar_top": true,
-    "grafico_tamano": 40,
-    "historial_segundos": 60,
+    "mostrar_fps": true,
     "interfaz_red": "auto"
 }
 EOF

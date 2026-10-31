@@ -51,16 +51,15 @@ if errorlevel 1 (
 echo [OK] psutil instalado
 echo.
 
-:: === 4. INSTALAR GPU OPCIONAL ===
-set /p instalar_gpu="[4/8] Instalar soporte para GPU? (S/N): "
-if /i "%instalar_gpu%"=="S" (
-    echo Instalando GPUtil...
-    pip install gputil
-    echo Instalando wmi y pywin32...
-    pip install wmi pywin32
-    echo [OK] Soporte GPU instalado
+:: === 4. SENSORES (DISCOS, GPU, TEMPERATURAS) ===
+:: wmi y pywin32 son necesarios para listar discos fisicos, GPU y leer
+:: LibreHardwareMonitor. GPUtil ya no se instala: no funciona en Python 3.12+.
+echo [4/8] Instalando soporte de sensores (wmi, pywin32)...
+pip install wmi pywin32
+if errorlevel 1 (
+    echo [AVISO] No se pudo instalar wmi/pywin32: discos y GPU se veran con menos detalle
 ) else (
-    echo [INFO] Soporte GPU omitido
+    echo [OK] Soporte de sensores instalado
 )
 echo.
 
@@ -75,8 +74,7 @@ if not exist "%CONFIG_DIR%\config.json" (
     echo     "mostrar_discos": true,>> "%CONFIG_DIR%\config.json"
     echo     "mostrar_red": true,>> "%CONFIG_DIR%\config.json"
     echo     "mostrar_top": true,>> "%CONFIG_DIR%\config.json"
-    echo     "grafico_tamano": 40,>> "%CONFIG_DIR%\config.json"
-    echo     "historial_segundos": 60,>> "%CONFIG_DIR%\config.json"
+    echo     "mostrar_fps": true,>> "%CONFIG_DIR%\config.json"
     echo     "interfaz_red": "auto">> "%CONFIG_DIR%\config.json"
     echo }>> "%CONFIG_DIR%\config.json"
     echo [OK] Configuracion creada en %CONFIG_DIR%\config.json
@@ -143,7 +141,6 @@ echo.
 echo [INFO] Limpiando archivos innecesarios...
 if exist "%SCRIPT_DIR%install.sh" del /q "%SCRIPT_DIR%install.sh" 2>nul
 if exist "%SCRIPT_DIR%uninstall.sh" del /q "%SCRIPT_DIR%uninstall.sh" 2>nul
-if exist "%SCRIPT_DIR%requeriments-linux.txt" del /q "%SCRIPT_DIR%requeriments-linux.txt" 2>nul
 if exist "%SCRIPT_DIR%requirements-linux.txt" del /q "%SCRIPT_DIR%requirements-linux.txt" 2>nul
 if exist "%SCRIPT_DIR%Linux.png" del /q "%SCRIPT_DIR%Linux.png" 2>nul
 if exist "%SCRIPT_DIR%*.sh" del /q "%SCRIPT_DIR%*.sh" 2>nul

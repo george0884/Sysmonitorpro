@@ -1,0 +1,6 @@
+# SysMonitorPro - Dependencias para Linux
+# Instalar con: pip install -r requirements-linux.txt
+#
+# Las GPU (NVIDIA vía nvidia-smi, AMD e Intel vía sysfs) y las temperaturas
+# se leen sin paquetes extra.
+psutil>=5.8.0

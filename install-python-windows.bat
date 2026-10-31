@@ -55,19 +55,18 @@ if errorlevel 1 (
 echo.
 echo [1/3] Instalando psutil...
 python -m pip install psutil
-pip install pyadl
 
 :: Instalar dependencias opcionales
 echo.
 set /p instalar_temp="Instalar soporte para temperaturas? (S/N): "
 if /i "%instalar_temp%"=="S" (
-    echo [2/3] Instalando wmi, pywin32, GPUtil...
-    python -m pip install wmi pywin32 GPUtil
+    echo [2/3] Instalando wmi, pywin32...
+    python -m pip install wmi pywin32
     echo.
     echo IMPORTANTE: Para ver temperaturas necesitas:
-    echo 1. Descargar OpenHardwareMonitor
-    echo 2. Link: https://openhardwaremonitor.org/
-    echo 3. Ejecutarlo (debe quedar abierto)
+    echo 1. Descargar LibreHardwareMonitor
+    echo 2. Link: https://librehardwaremonitor.com/
+    echo 3. Ejecutarlo como administrador (debe quedar abierto)
 ) else (
     echo [2/3] Saltando instalacion de temperaturas
 )

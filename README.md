@@ -16,7 +16,7 @@
 | **Discos** | Todos los discos físicos (NVMe/SSD/HDD/USB) · Uso agregado de sus particiones (LVM/LUKS/RAID/btrfs) · Lectura/escritura por segundo · Temperatura |
 | **Procesos** | Top procesos ordenados por CPU% · PID · MEM% · Usuario |
 | **Gráficos históricos** | Visualización ASCII del uso de CPU y RAM (últimos 60 segundos) |
-| **FPS** | Juego activo, FPS, 1% low y frametime · Windows: PresentMon (como administrador) · Linux: registros de MangoHud (en vivo o última partida) |
+| **FPS** | Juego activo, FPS, 1% low y frametime · Solo si ya tienes PresentMon (Windows, como administrador) o MangoHud (Linux); si no, la sección no aparece |
 | **GPU** | NVIDIA (nvidia-smi), AMD (sysfs: uso, VRAM, temp), Intel (frecuencia) · Windows: contadores nativos o LibreHardwareMonitor |
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
@@ -97,7 +97,7 @@ python --version
 pip install psutil
 
 # Dependencias opcionales para temperaturas
-pip install wmi pywin32 GPUtil
+pip install wmi pywin32
 ```
 
 1. Instalar Libre Hardware Monitor (necesario para temperaturas)
@@ -217,21 +217,23 @@ Opciones disponibles
 
 🎮 FPS
 
-· Windows: descarga PresentMon (https://github.com/GameTechDev/PresentMon/releases, archivo PresentMon-x.y.z-x64.exe)
-  y cópialo en la carpeta de SysMonitorPro (o pon su ruta en "presentmon"). Ejecuta SysMonitorPro como administrador.
-  Muestra el juego en primer plano; si la terminal está delante, el que más frames dibuja.
-· Linux: instala MangoHud y activa el registro en el juego con Shift_L+F2 (o autostart_log=1 en MangoHud.conf).
-  Se leen los CSV de output_folder (o ~/mangohud-logs). Si no hay partida en curso, se muestra el resumen de la última.
+La sección FPS aparece sola cuando hay un juego y la herramienta ya está en el equipo; si no, no se muestra
+y no hace falta instalar nada.
 
+· Windows: usa PresentMon si está en el PATH o en la carpeta del programa (o en "presentmon") y SysMonitorPro
+  se abrió como administrador.
+· Linux: usa los registros de MangoHud si está instalado (Shift_L+F2 en el juego para grabar). Sin partida en
+  curso muestra el resumen de la última.
 Opción Valores Defecto Descripción
 intervalo 0.5 - 5.0 1.0 Segundos entre actualizaciones
 mostrar_gpu true/false true Mostrar/ocultar GPU
 mostrar_discos true/false true Mostrar/ocultar discos
 mostrar_red true/false true Mostrar/ocultar red
 mostrar_top true/false true Mostrar/ocultar top procesos
-grafico_tamano 20 - 100 40 Ancho del gráfico histórico
-historial_segundos 30 - 300 60 Duración del historial
+mostrar_fps true/false true Mostrar/ocultar FPS (si hay PresentMon o MangoHud)
 interfaz_red "auto" / nombre "auto" Interfaz específica
+presentmon ruta "" Ruta a PresentMon.exe (vacío = buscar)
+mangohud_logs carpeta "" Carpeta de registros de MangoHud (vacío = auto)
 
 ---
 
@@ -336,7 +338,9 @@ sysmonitorpro/
 ├── install.sh             # Instalador Linux
 ├── install.bat            # Instalador Windows
 ├── uninstall.sh           # Desinstalador Linux
-├── setup.py               # Instalación con pip
+├── setup.py               # Instalación con pip (pip install . → comando sysmonitor)
+├── requirements-linux.txt
+├── requirements-windows.txt
 ├── .gitignore
 ├── LICENSE                # GPL-3.0
 ├── README.md
