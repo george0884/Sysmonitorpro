@@ -64,7 +64,7 @@ else:
 M      = "\033[38;5;201m"
 C      = "\033[38;5;51m"
 C_BAR  = "\033[38;5;39m"
-C_SHD  = "\033[38;5;236m"
+C_SHD  = "\033[38;5;240m"
 W      = "\033[1;37m"
 D      = "\033[2;37m"
 G      = "\033[38;5;46m"
@@ -102,7 +102,9 @@ def barra(pct: float, ancho: int = 12) -> str:
     rell = int(pct * ancho / 100)
     vac = ancho - rell
     col = C_BAR if pct < 80 else (Y if pct < 90 else R)
-    return f"{D}[{NC}{col}{'█' * rell}{C_SHD}{'█' * vac}{NC}{D}]{NC} {C}{pct:5.1f}%{NC}"
+    # La parte vacía usa un carácter fino en vez de bloques grises sólidos:
+    # con terminales transparentes (Alacritty, Konsole) los bloques tapaban el fondo.
+    return f"{D}[{NC}{col}{'█' * rell}{NC}{C_SHD}{'─' * vac}{NC}{D}]{NC} {C}{pct:5.1f}%{NC}"
 
 def barra_na(ancho: int = 12) -> str:
     return f"{D}[{'·' * ancho}]{NC} {D}  N/A{NC}"
@@ -276,7 +278,8 @@ def get_system_info():
         partes = [limpiar_dmi(leer(f"/sys/class/dmi/id/board_{k}")) for k in ("vendor", "name")]
         version = limpiar_dmi(leer("/sys/class/dmi/id/board_version"))
         if version:
-            partes.append(f"Rev.{version}")
+            # Algunas placas ya traen "Rev X" (antes salía "Rev.Rev X")
+            partes.append(version if version.lower().startswith("rev") else f"Rev.{version}")
         info["mb"] = (" ".join(p for p in partes if p) or "Motherboard")[:50]
 
         info["cpu_model"] = "CPU"
@@ -1038,7 +1041,7 @@ class FpsMangoHud:
         ruta, cab = self._ultimo_registro()
         if not ruta:
             return {"fuente": "MangoHud", "app": None,
-                    "error": "Sin registros de MangoHud (Shift_L+F2 en el juego o autostart_log=1)"}
+                    "error": "Sin registros: abre el juego con mangohud y Shift_L+F2"}
         mtime = os.path.getmtime(ruta)
         app = re.sub(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$", "", os.path.splitext(os.path.basename(ruta))[0])
         vivo = time.time() - mtime < 5
@@ -1066,18 +1069,29 @@ class FpsMangoHud:
         res["hace"] = time.time() - mtime
         return res
 
-def crear_fuente_fps(cfg):
-    """Solo usa lo que ya está en el equipo: si falta PresentMon (o permisos de
-    administrador) o MangoHud, la sección FPS simplemente no se muestra."""
+def estado_fps(cfg):
+    """(disponible, motivo) para explicar en la pantalla de inicio por qué la
+    sección FPS aparece o no."""
     if IS_WINDOWS:
         exe = buscar_presentmon(cfg.get("presentmon", ""))
-        if not exe or not es_admin_windows():
-            return None
-        return FpsPresentMon(exe)
+        if not exe:
+            return False, "PresentMon no encontrado (copia PresentMon-x.y.z-x64.exe en la carpeta del programa)"
+        if not es_admin_windows():
+            return False, "PresentMon necesita abrir SysMonitorPro como administrador"
+        return True, f"PresentMon listo: {os.path.basename(exe)}"
     carpeta = os.path.expanduser(cfg.get("mangohud_logs", "") or "")
     if not carpeta and not shutil.which("mangohud"):
+        return False, "MangoHud no está instalado"
+    return True, "MangoHud listo: abre el juego con mangohud y graba con Shift_L+F2"
+
+def crear_fuente_fps(cfg):
+    """Solo usa lo que ya está en el equipo: si falta PresentMon (o permisos de
+    administrador) o MangoHud, la sección FPS no se muestra."""
+    if not estado_fps(cfg)[0]:
         return None
-    return FpsMangoHud(carpeta)
+    if IS_WINDOWS:
+        return FpsPresentMon(buscar_presentmon(cfg.get("presentmon", "")))
+    return FpsMangoHud(os.path.expanduser(cfg.get("mangohud_logs", "") or ""))
 
 # ─── RECOLECCIÓN ────────────────────────────────────────────────────────────
 def get_disks():
@@ -1156,9 +1170,9 @@ def recolectar(info: dict, cfg: dict, gpus: list, fps=None, n_procs: int = 10) -
     if cfg["mostrar_gpu"]:
         datos["gpu"] = leer_gpus_windows(gpus) if IS_WINDOWS else [leer_gpu_linux(g) for g in gpus]
     if cfg["mostrar_fps"] and fps is not None:
-        lectura = fps.lectura()
-        if lectura.get("app"):                        # sin juego detectado no se muestra nada
-            datos["fps"] = lectura
+        # Con la herramienta disponible la sección siempre se ve: con el juego
+        # o con el motivo por el que todavía no hay datos.
+        datos["fps"] = fps.lectura()
     if cfg["mostrar_red"]:
         datos["network"] = get_net(cfg.get("interfaz_red", "auto"))
     if cfg["mostrar_discos"]:
@@ -1229,8 +1243,11 @@ def render(datos: dict, cols: int, intervalo: float):
             ft = f"{fp['frametime']:.1f} ms" if fp.get("frametime") else "N/A"
             out.append(f"  {C}{etiqueta:<8}{NC} {col}\033[1m{fp['fps']:>5.0f}{NC}"
                        f"   {C}1% low{NC} {low:>5}   {C}Frametime{NC} {ft}\033[K")
-        else:
+        elif fp.get("app"):
             out.append(f" {M}▶ FPS{NC}  {D}{fp['app'][:35]}  (esperando datos){NC}\033[K")
+        else:
+            motivo = fp.get("error") or f"esperando un juego ({fp['fuente']})"
+            out.append(f" {M}▶ FPS{NC}  {D}{motivo[:58]}{NC}\033[K")
         out.append(sep(cols))
 
     # RECURSOS
@@ -1368,9 +1385,12 @@ def main():
             print(f"\n  {Y}⚠️  Para temperaturas reales:{NC}")
             print("     pip install wmi pywin32")
             print("     Ejecutar LibreHardwareMonitor")
+    if cfg["mostrar_fps"]:
+        ok, motivo = estado_fps(cfg)
+        print(f"  {C}FPS:{NC} {'✅' if ok else '❌'} {motivo}")
     print(f"  {W}Presiona 'q' para salir{NC}")
     print("=" * 60)
-    time.sleep(2)
+    time.sleep(3)
 
     sys.stdout.write("\033[?1049h\033[?25l")
     sys.stdout.flush()
