@@ -10,13 +10,13 @@
 | Módulo | Detalle |
 |--------|---------|
 | **CPU** | Uso real por núcleo · Frecuencia GHz · Temperatura con colores |
-| **Temperatura** | Soporte Intel, AMD, NVMe, GPU (Windows via OpenHardwareMonitor) |
+| **Temperatura** | Reales: Intel (por núcleo), AMD (Tdie/Tctl), NVMe/SATA, GPU (Windows vía LibreHardwareMonitor). Si no hay sensor se muestra N/A, nunca un valor inventado |
 | **RAM / SWAP** | Uso en tiempo real con barras de progreso |
 | **Red** | Velocidad ↓ / ↑ instantánea · Total acumulado · Detección automática |
-| **Discos** | Uso por partición · Bytes leídos/escritos |
+| **Discos** | Todos los discos físicos (NVMe/SSD/HDD/USB) · Uso agregado de sus particiones (LVM/LUKS/RAID/btrfs) · Lectura/escritura por segundo · Temperatura |
 | **Procesos** | Top procesos ordenados por CPU% · PID · MEM% · Usuario |
 | **Gráficos históricos** | Visualización ASCII del uso de CPU y RAM (últimos 60 segundos) |
-| **GPU** | Soporte NVIDIA, AMD, Intel |
+| **GPU** | NVIDIA (nvidia-smi), AMD (sysfs: uso, VRAM, temp), Intel (frecuencia) · Windows: contadores nativos o LibreHardwareMonitor |
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
@@ -161,7 +161,6 @@ Opción Descripción
 --no-top Ocultar top procesos
 -i N / --interval N Intervalo de actualización (ej: -i 2.0)
 -c ARCHIVO / --config ARCHIVO Usar configuración específica
---hist-size N Tamaño del historial (segundos)
 --help Mostrar ayuda
 
 Ejemplos
@@ -356,7 +355,7 @@ Windows
 Problema Solución
 psutil not found pip install psutil
 No module named 'wmi' pip install wmi pywin32
-No se ven temperaturas Instala y ejecuta OpenHardwareMonitor
+No se ven temperaturas Instala y ejecuta LibreHardwareMonitor (como administrador, se lee root\LibreHardwareMonitor; OpenHardwareMonitor también funciona)
 Colores no visibles Usa Windows Terminal o ejecuta: Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWord -Value 1
 
 Linux
@@ -364,6 +363,7 @@ Linux
 Problema Solución
 psutil not found pip3 install --user psutil
 No se ven temperaturas sudo apt install lm-sensors && sudo sensors-detect
+Sin temperatura en discos SATA sudo modprobe drivetemp (persistente: echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf)
 No detecta GPU NVIDIA Instalar drivers NVIDIA y verificar con nvidia-smi
 sysmonitor no se encuentra source ~/.bashrc o export PATH="$PATH:$HOME/.local/bin"
 
