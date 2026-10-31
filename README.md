@@ -10,14 +10,13 @@
 | Módulo | Detalle |
 |--------|---------|
 | **CPU** | Uso real por núcleo · Frecuencia GHz · Temperatura con colores |
-| **Temperatura** | Reales: Intel (por núcleo), AMD (Tdie/Tctl), NVMe/SATA, GPU (Windows vía LibreHardwareMonitor). Si no hay sensor se muestra N/A, nunca un valor inventado |
+| **Temperatura** | Soporte Intel, AMD, NVMe, GPU (Windows via OpenHardwareMonitor) |
 | **RAM / SWAP** | Uso en tiempo real con barras de progreso |
 | **Red** | Velocidad ↓ / ↑ instantánea · Total acumulado · Detección automática |
-| **Discos** | Todos los discos físicos (NVMe/SSD/HDD/USB) · Uso agregado de sus particiones (LVM/LUKS/RAID/btrfs) · Lectura/escritura por segundo · Temperatura |
+| **Discos** | Uso por partición · Bytes leídos/escritos |
 | **Procesos** | Top procesos ordenados por CPU% · PID · MEM% · Usuario |
 | **Gráficos históricos** | Visualización ASCII del uso de CPU y RAM (últimos 60 segundos) |
-| **FPS** | Juego activo, FPS, 1% low y frametime · Windows: PresentMon (como administrador) · Linux: registros de MangoHud (en vivo o última partida) |
-| **GPU** | NVIDIA (nvidia-smi), AMD (sysfs: uso, VRAM, temp), Intel (frecuencia) · Windows: contadores nativos o LibreHardwareMonitor |
+| **GPU** | Soporte NVIDIA, AMD, Intel |
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
 
@@ -160,9 +159,9 @@ Opción Descripción
 --no-disks Ocultar sección discos
 --no-network Ocultar sección red
 --no-top Ocultar top procesos
---no-fps Ocultar sección FPS
 -i N / --interval N Intervalo de actualización (ej: -i 2.0)
 -c ARCHIVO / --config ARCHIVO Usar configuración específica
+--hist-size N Tamaño del historial (segundos)
 --help Mostrar ayuda
 
 Ejemplos
@@ -208,20 +207,11 @@ Opciones disponibles
     "mostrar_discos": true,
     "mostrar_red": true,
     "mostrar_top": true,
-    "mostrar_fps": true,
-    "interfaz_red": "auto",
-    "presentmon": "",
-    "mangohud_logs": ""
+    "grafico_tamano": 40,
+    "historial_segundos": 60,
+    "interfaz_red": "auto"
 }
 ```
-
-🎮 FPS
-
-· Windows: descarga PresentMon (https://github.com/GameTechDev/PresentMon/releases, archivo PresentMon-x.y.z-x64.exe)
-  y cópialo en la carpeta de SysMonitorPro (o pon su ruta en "presentmon"). Ejecuta SysMonitorPro como administrador.
-  Muestra el juego en primer plano; si la terminal está delante, el que más frames dibuja.
-· Linux: instala MangoHud y activa el registro en el juego con Shift_L+F2 (o autostart_log=1 en MangoHud.conf).
-  Se leen los CSV de output_folder (o ~/mangohud-logs). Si no hay partida en curso, se muestra el resumen de la última.
 
 Opción Valores Defecto Descripción
 intervalo 0.5 - 5.0 1.0 Segundos entre actualizaciones
@@ -366,7 +356,7 @@ Windows
 Problema Solución
 psutil not found pip install psutil
 No module named 'wmi' pip install wmi pywin32
-No se ven temperaturas Instala y ejecuta LibreHardwareMonitor (como administrador, se lee root\LibreHardwareMonitor; OpenHardwareMonitor también funciona)
+No se ven temperaturas Instala y ejecuta OpenHardwareMonitor
 Colores no visibles Usa Windows Terminal o ejecuta: Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWord -Value 1
 
 Linux
@@ -374,7 +364,6 @@ Linux
 Problema Solución
 psutil not found pip3 install --user psutil
 No se ven temperaturas sudo apt install lm-sensors && sudo sensors-detect
-Sin temperatura en discos SATA sudo modprobe drivetemp (persistente: echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf)
 No detecta GPU NVIDIA Instalar drivers NVIDIA y verificar con nvidia-smi
 sysmonitor no se encuentra source ~/.bashrc o export PATH="$PATH:$HOME/.local/bin"
 
