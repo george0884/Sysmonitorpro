@@ -16,6 +16,7 @@
 | **Discos** | Todos los discos físicos (NVMe/SSD/HDD/USB) · Uso agregado de sus particiones (LVM/LUKS/RAID/btrfs) · Lectura/escritura por segundo · Temperatura |
 | **Procesos** | Top procesos ordenados por CPU% · PID · MEM% · Usuario |
 | **Gráficos históricos** | Visualización ASCII del uso de CPU y RAM (últimos 60 segundos) |
+| **FPS** | Juego activo, FPS, 1% low y frametime · Windows: PresentMon (como administrador) · Linux: registros de MangoHud (en vivo o última partida) |
 | **GPU** | NVIDIA (nvidia-smi), AMD (sysfs: uso, VRAM, temp), Intel (frecuencia) · Windows: contadores nativos o LibreHardwareMonitor |
 | **Modo JSON** | Salida estructurada para scripts |
 | **UI** | Pantalla alternativa · Cursor oculto · Redimensionamiento dinámico |
@@ -159,6 +160,7 @@ Opción Descripción
 --no-disks Ocultar sección discos
 --no-network Ocultar sección red
 --no-top Ocultar top procesos
+--no-fps Ocultar sección FPS
 -i N / --interval N Intervalo de actualización (ej: -i 2.0)
 -c ARCHIVO / --config ARCHIVO Usar configuración específica
 --help Mostrar ayuda
@@ -206,11 +208,20 @@ Opciones disponibles
     "mostrar_discos": true,
     "mostrar_red": true,
     "mostrar_top": true,
-    "grafico_tamano": 40,
-    "historial_segundos": 60,
-    "interfaz_red": "auto"
+    "mostrar_fps": true,
+    "interfaz_red": "auto",
+    "presentmon": "",
+    "mangohud_logs": ""
 }
 ```
+
+🎮 FPS
+
+· Windows: descarga PresentMon (https://github.com/GameTechDev/PresentMon/releases, archivo PresentMon-x.y.z-x64.exe)
+  y cópialo en la carpeta de SysMonitorPro (o pon su ruta en "presentmon"). Ejecuta SysMonitorPro como administrador.
+  Muestra el juego en primer plano; si la terminal está delante, el que más frames dibuja.
+· Linux: instala MangoHud y activa el registro en el juego con Shift_L+F2 (o autostart_log=1 en MangoHud.conf).
+  Se leen los CSV de output_folder (o ~/mangohud-logs). Si no hay partida en curso, se muestra el resumen de la última.
 
 Opción Valores Defecto Descripción
 intervalo 0.5 - 5.0 1.0 Segundos entre actualizaciones
